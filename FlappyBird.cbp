@@ -20,6 +20,7 @@
 					<Add option="-lopengl32" />
 					<Add option="-lglu32" />
 					<Add option="-lfreeglut" />
+					<Add option="-lwinmm" />
 					<Add option="-lm" />
 				</Linker>
 			</Target>
@@ -37,6 +38,7 @@
 					<Add option="-lopengl32" />
 					<Add option="-lglu32" />
 					<Add option="-lfreeglut" />
+					<Add option="-lwinmm" />
 					<Add option="-lm" />
 					<Add option="-s" />
 				</Linker>
