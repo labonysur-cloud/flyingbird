@@ -68,6 +68,15 @@ The background scenario changes automatically every 30 seconds and can also be c
 | Rain   | Dark overcast grey     | 220 rain particles, zigzag lightning, fog     |
 | Night  | Deep navy gradient     | 110 twinkling stars, glowing crescent moon    |
 
+<p align="center">
+  <img src="asset/image/day.png" width="48%" title="Day Mode" />
+  <img src="asset/image/dawn.png" width="48%" title="Sunny Mode" />
+</p>
+<p align="center">
+  <img src="asset/image/rainy.png" width="48%" title="Rain Mode" />
+  <img src="asset/image/night.png" width="48%" title="Night Mode" />
+</p>
+
 All scene elements adapt to the active weather mode including pipe colour tint, ground grass colour, building brightness and window glow colour.
 
 ### Visual Effects
