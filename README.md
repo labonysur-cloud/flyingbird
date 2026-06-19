@@ -1,150 +1,160 @@
 <p align="center">
-  <img src="https://img.shields.io/badge/Language-C-blue?style=for-the-badge&logo=c" />
-  <img src="https://img.shields.io/badge/Graphics-OpenGL%20%2B%20GLUT-green?style=for-the-badge&logo=opengl" />
+  <img src="https://img.shields.io/badge/Language-C99-blue?style=for-the-badge&logo=c" />
+  <img src="https://img.shields.io/badge/Graphics-OpenGL%20%2B%20GLUT-green?style=for-the-badge" />
   <img src="https://img.shields.io/badge/IDE-Code%3A%3ABlocks-orange?style=for-the-badge" />
   <img src="https://img.shields.io/badge/Platform-Windows-lightgrey?style=for-the-badge&logo=windows" />
   <img src="https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge" />
 </p>
 
-<h1 align="center">🐦 Flappy Bird — OpenGL Edition</h1>
+<h1 align="center">Flappy Bird — OpenGL Edition</h1>
 
 <p align="center">
-  <b>A fully playable, visually polished Flappy Bird clone built entirely in C using OpenGL + GLUT.</b><br/>
-  Developed as a Computer Graphics Lab Project — no external game engines, no assets, pure code.
+  <b>A fully playable, visually polished Flappy Bird clone built entirely in C using OpenGL and GLUT.</b><br/>
+  Developed as a Computer Graphics Lab Project — no external game engines, no image assets, pure code.
 </p>
 
 <p align="center">
-  <a href="#-features">Features</a> •
-  <a href="#-prerequisites">Prerequisites</a> •
-  <a href="#-setup--installation">Setup</a> •
-  <a href="#-building--running">Build & Run</a> •
-  <a href="#-controls">Controls</a> •
-  <a href="#-project-structure">Structure</a> •
-  <a href="#-code-architecture">Architecture</a> •
-  <a href="#-license">License</a>
+  <a href="#features">Features</a> &nbsp;|&nbsp;
+  <a href="#prerequisites">Prerequisites</a> &nbsp;|&nbsp;
+  <a href="#setup-and-installation">Setup</a> &nbsp;|&nbsp;
+  <a href="#building-and-running">Build and Run</a> &nbsp;|&nbsp;
+  <a href="#controls">Controls</a> &nbsp;|&nbsp;
+  <a href="#code-architecture">Architecture</a> &nbsp;|&nbsp;
+  <a href="#license">License</a>
 </p>
 
 ---
 
-## 🎮 Demo / Preview
+## Overview
 
-```
-┌────────────────────────────────────────────────┐
-│  🌤  Sky gradient  ·  Parallax clouds          │
-│                                                │
-│  🏙  City silhouette with glowing windows      │
-│                                                │
-│  🐦──────────  [Score: 7]  ──────────          │
-│              ┃         ┃                       │
-│        ══════╋═════════╋══════  ← Pipes       │
-│              ┃  GAP    ┃                       │
-│              ┃         ┃                       │
-│▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓  ← Ground     │
-└────────────────────────────────────────────────┘
-```
+This project is a complete Flappy Bird clone written from scratch in C using OpenGL and FreeGLUT. Every visual element — the bird, pipes, clouds, background, ground, city silhouette, rain, stars, sun and moon — is drawn entirely with OpenGL primitives such as quads, triangles and parametric circles. No image files or external assets are used.
 
-> **All graphics are drawn in real-time using OpenGL primitives** — no image files, no sprite sheets.
+The game features four dynamic weather modes that change the entire visual atmosphere of the scene. All graphics run at 60 frames per second using a GLUT timer-based game loop with double buffering.
 
 ---
 
-## ✨ Features
+## Features
 
-### 🐦 Bird Mechanics
-- Realistic gravity and physics simulation
-- Flap impulse on **Space** or **Left Click**
-- Smooth tilt interpolation: nose-up on flap, nose-dive on fall
-- 3-frame wing animation (up / mid / down) synced to movement
+### Bird Mechanics
+- Gravity-based physics applied every frame
+- Flap upward with Space bar or left mouse click
+- Smooth tilt interpolation — bird tilts nose-up on flap and nose-down on fall
+- Three-frame wing animation (up, mid, down) cycling continuously
 
-### 🌿 Pipe System
-- 3 simultaneous pipe pairs scrolling continuously left
-- Randomly generated gap heights every recycle
-- Adjustable gap size and spacing constants
-- **Progressive difficulty** — pipe speed increases with score
+### Pipe System
+- Three simultaneous pipe pairs scrolling from right to left
+- Randomly generated gap height on each recycle
+- Wider gap and gentler speed ramp for fair and enjoyable difficulty
+- Progressive difficulty — pipe speed increases slightly each frame
 
-### 💥 Collision Detection
-- Circle vs. AABB (Axis-Aligned Bounding Box) collision per pipe
-- Ground and ceiling boundary detection
-- Slightly forgiving hitbox for fair gameplay
+### Collision Detection
+- Circle vs. AABB (Axis-Aligned Bounding Box) test against each pipe segment
+- Ground and ceiling boundary checks
+- Slightly reduced hitbox radius for a forgiving feel
 
-### 🏆 Scoring System
-- Score increments when bird successfully passes a pipe pair
-- **Session high score** retained in memory
-- Large centered score display + top-left best score
+### Scoring
+- Score increments each time the bird passes through a pipe pair
+- Session high score retained in memory throughout the session
+- Large centred score display with drop shadow
+- High score shown in the top-left corner
 
-### 🖼 Visual Polish
-| Effect | Description |
-|--------|-------------|
-| Sky gradient | Smooth lerp from warm cyan at horizon to deep blue at zenith |
-| Parallax clouds | 6 clouds in 2 speed layers, wrapping seamlessly |
-| City silhouette | 14 procedural buildings with pseudo-random lit windows |
-| Scrolling ground | Animated grass tiles synced to pipe speed |
-| Screen shake | 15-frame camera shake on collision |
-| Death flash | White flash overlay on bird death |
-| Pulsing UI | `sin()`-driven alpha animation on prompts |
-| Aspect ratio lock | Pillarbox / letterbox for any window size |
+### Dynamic Weather System
+The background scenario changes automatically every 30 seconds and can also be changed manually at any time by pressing W.
 
-### 🎮 Game States
+| Mode   | Sky                    | Special Elements                              |
+|--------|------------------------|-----------------------------------------------|
+| Day    | Bright blue gradient   | Animated sun with pulsing rays                |
+| Sunny  | Warm golden gradient   | Larger animated sun, warmer cloud tones       |
+| Rain   | Dark overcast grey     | 220 rain particles, zigzag lightning, fog     |
+| Night  | Deep navy gradient     | 110 twinkling stars, glowing crescent moon    |
+
+All scene elements adapt to the active weather mode including pipe colour tint, ground grass colour, building brightness and window glow colour.
+
+### Visual Effects
+| Effect              | Description                                                 |
+|---------------------|-------------------------------------------------------------|
+| Sky gradient        | Two-stop interpolated gradient from horizon to zenith       |
+| Parallax clouds     | Seven clouds across two speed layers wrapping continuously  |
+| Beautiful clouds    | Eight overlapping ellipses with shadow, depth tint and highlight |
+| City silhouette     | Fourteen procedural buildings with pseudo-random lit windows |
+| Scrolling ground    | Animated grass tile pattern synced to pipe scroll speed     |
+| Screen shake        | Fifteen-frame camera shake triggered on collision           |
+| Death flash         | White flash overlay on bird death                           |
+| Weather flash       | Brief white flash on weather change                         |
+| Pulsing UI text     | Sin-driven alpha animation on prompts and score             |
+| Aspect ratio lock   | Pillarbox or letterbox viewport for any window size         |
+| Full screen launch  | Game starts in full screen, toggled with F11                |
+
+### Game States
+
 ```
-[Title Screen] ──SPACE──► [Playing] ──P──► [Paused] ──P──► [Playing]
-                               │
+[Title Screen] --SPACE--> [Playing] --P--> [Paused] --P--> [Playing]
+                               |
                           (Collision)
-                               │
-                               ▼
-                        [Game Over] ──SPACE/R──► [Playing]
+                               |
+                               v
+                        [Game Over] --SPACE or R--> [Playing]
 ```
 
 ---
 
-## 📋 Prerequisites
+## Prerequisites
 
-| Requirement | Details |
-|-------------|---------|
-| **Operating System** | Windows 7 / 8 / 10 / 11 |
-| **IDE** | [Code::Blocks](https://www.codeblocks.org/) with MinGW bundled |
-| **Graphics Library** | [FreeGLUT for MinGW](https://www.transmissionzero.co.uk/software/freeglut-devel/) |
-| **Compiler** | GCC (MinGW) — ships with Code::Blocks |
-| **C Standard** | C99 or later |
+| Requirement      | Details                                                              |
+|------------------|----------------------------------------------------------------------|
+| Operating System | Windows 7, 8, 10 or 11                                              |
+| IDE              | Code::Blocks with MinGW bundled (codeblocks-XX.XX-mingw-setup.exe)  |
+| Graphics Library | FreeGLUT for MinGW                                                   |
+| Compiler         | GCC (MinGW) — included with the Code::Blocks installer               |
+| C Standard       | C99 or later                                                         |
 
 ---
 
-## 🔧 Setup & Installation
+## Setup and Installation
 
 ### Step 1 — Install Code::Blocks with MinGW
 
-Download the **"codeblocks-XX.XX-setup.exe with MinGW"** installer from:
-> https://www.codeblocks.org/downloads/binaries/
+Download the installer that includes MinGW from:
 
-Run the installer with default settings. MinGW (GCC) is bundled automatically.
+```
+https://www.codeblocks.org/downloads/binaries/
+```
+
+Choose the file named `codeblocks-XX.XX-mingw-setup.exe`. Run the installer and use default settings. GCC is bundled automatically.
 
 ---
 
 ### Step 2 — Download FreeGLUT
 
-Download the **MinGW package** of FreeGLUT from:
-> https://www.transmissionzero.co.uk/software/freeglut-devel/
+Download the MinGW package of FreeGLUT from:
 
-Extract the ZIP. You will see these folders:
+```
+https://www.transmissionzero.co.uk/software/freeglut-devel/
+```
+
+Extract the ZIP archive. Inside you will find:
+
 ```
 freeglut/
-├── bin/           ← freeglut.dll
-├── include/GL/    ← glut.h, freeglut.h, ...
-└── lib/           ← libfreeglut.a, libfreeglut_static.a
+    bin/           <-- freeglut.dll
+    include/GL/    <-- glut.h, freeglut.h and related headers
+    lib/           <-- libfreeglut.a, libfreeglut_static.a
 ```
 
 ---
 
-### Step 3 — Copy FreeGLUT Files
+### Step 3 — Copy FreeGLUT Files into MinGW
 
-Replace `C:\Program Files\CodeBlocks\MinGW\` with your actual MinGW path.
+The default MinGW location is `C:\Program Files\CodeBlocks\MinGW\`. Adjust this path if yours differs.
 
-| FreeGLUT Source | Copy To |
-|-----------------|---------|
-| `include\GL\*.h` | `<MinGW>\include\GL\` |
-| `lib\libfreeglut.a` | `<MinGW>\lib\` |
-| `lib\libfreeglut_static.a` | `<MinGW>\lib\` |
-| `bin\freeglut.dll` | Next to your compiled `.exe` |
+| Copy from FreeGLUT          | Paste into MinGW folder              |
+|-----------------------------|--------------------------------------|
+| `include\GL\` (all .h files) | `<MinGW>\include\GL\`              |
+| `lib\libfreeglut.a`          | `<MinGW>\lib\`                     |
+| `lib\libfreeglut_static.a`   | `<MinGW>\lib\`                     |
+| `bin\freeglut.dll`           | Place next to your compiled .exe   |
 
-> **Quick method for the DLL:** Copy `freeglut.dll` into `bin\Debug\` and `bin\Release\` inside the project folder.
+For the DLL, copy `freeglut.dll` into the `bin\Debug\` folder inside the project directory. This is where Code::Blocks places the compiled executable.
 
 ---
 
@@ -157,154 +167,184 @@ cd flappybird
 
 ---
 
-## 🚀 Building & Running
+## Building and Running
 
 ### Option A — Code::Blocks (Recommended)
 
-1. Open **`FlappyBird.cbp`** in Code::Blocks
-2. Press **F9** → Build and Run
+1. Open `FlappyBird.cbp` in Code::Blocks
+2. Press F9 to build and run
 
-The project file already has the correct linker flags pre-configured:
+The project file already contains the correct linker flags:
+
 ```
--lopengl32  -lglu32  -lfreeglut  -lm
+-lopengl32 -lglu32 -lfreeglut -lm
 ```
+
+The game window opens in full screen automatically. Press F11 to switch to windowed mode.
 
 ---
 
 ### Option B — Manual MinGW Command Line
 
-Open a Command Prompt or PowerShell in the project directory:
+Open Command Prompt in the project directory and run:
 
 ```bash
 gcc flappy_bird.c -o flappy_bird.exe -lopengl32 -lglu32 -lfreeglut -lm -std=c99
 flappy_bird.exe
 ```
 
-Make sure `freeglut.dll` is in the **same directory** as `flappy_bird.exe`.
+Make sure `freeglut.dll` is in the same folder as `flappy_bird.exe`.
 
 ---
 
-### Option C — If You Configure Your Own Code::Blocks Project
+### Option C — Custom Code::Blocks Project
 
-Go to **Project → Build options → Linker settings → Other linker options** and add:
+If you create a new project manually, go to:
+
+**Project -> Build options -> Linker settings -> Other linker options**
+
+and add:
+
 ```
 -lopengl32 -lglu32 -lfreeglut -lm
 ```
 
 ---
 
-## 🕹 Controls
+## Controls
 
-| Input | Action |
-|-------|--------|
-| `SPACE` | Flap / Start game / Restart after death |
-| `Left Mouse Button` | Same as SPACE |
-| `P` | Pause / Unpause |
-| `R` | Restart from Game Over screen |
-| `ESC` | Quit |
+| Input             | Action                                      |
+|-------------------|---------------------------------------------|
+| Space             | Flap / Start game / Restart after death     |
+| Left mouse click  | Same as Space                               |
+| W                 | Cycle weather mode (Day / Sunny / Rain / Night) |
+| P                 | Pause or unpause                            |
+| R                 | Restart from Game Over screen               |
+| F11               | Toggle full screen and windowed mode        |
+| ESC               | Quit                                        |
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 flappybird/
-│
-├── flappy_bird.c       # Complete game source (~1100 lines, single file)
-├── FlappyBird.cbp      # Code::Blocks project file
-├── README.md           # This file
-└── LICENSE             # MIT License
+    flappy_bird.c       Complete game source code (~1100 lines, single file)
+    FlappyBird.cbp      Code::Blocks project file with linker flags
+    README.md           This file
+    LICENSE             MIT License
+    .gitignore          Excludes build output and binary files
 ```
 
-> **Single-file design** — the entire game fits in one `.c` file for easy submission, review, and presentation.
+The entire game is contained in a single `.c` file for easy submission, review and lab presentation.
 
 ---
 
-## 🏗 Code Architecture
+## Code Architecture
 
-The code is organized into clearly separated, well-commented logical sections:
+The source file is divided into clearly labelled sections with comments explaining each part.
 
-### Initialization
-| Function | Responsibility |
-|----------|---------------|
-| `init()` | OpenGL state, projection matrix, seeds RNG, calls sub-inits |
-| `initBird()` | Reset bird position, velocity, animation frame |
-| `initPipes()` | Spawn 3 pipe pairs at staggered X offsets with random gaps |
-| `initClouds()` | Distribute 6 clouds across the sky at random positions |
-| `initBuildings()` | Generate 14 deterministic city silhouette buildings |
-| `resetGame()` | Full game reset — calls all inits, resets score and speed |
+### Initialisation Functions
+
+| Function          | Responsibility                                                   |
+|-------------------|------------------------------------------------------------------|
+| `init()`          | OpenGL state, projection matrix, random seed, calls all sub-inits |
+| `initBird()`      | Reset bird position, velocity, tilt and animation frame          |
+| `initPipes()`     | Spawn three pipe pairs at staggered X positions with random gaps |
+| `initClouds()`    | Place seven clouds at random positions with two speed layers     |
+| `initBuildings()` | Generate fourteen city silhouette buildings with random sizes    |
+| `initRain()`      | Initialise 220 rain particle positions, speeds and lengths       |
+| `initStars()`     | Initialise 110 star positions, sizes and twinkle phase offsets   |
+| `resetGame()`     | Full game reset — resets score, speed and all game objects       |
 
 ### Rendering Pipeline
+
 ```
 display()
-  ├── drawBackground()        Sky gradient quad
-  ├── drawClouds()            Parallax cloud blobs (2 speed layers)
-  ├── drawCitySilhouette()    Dark building shapes + window dots
-  ├── drawPipes()             3 pipe pairs with cap + highlight/shadow
-  ├── drawGround()            Grass + dirt + scrolling tile details
-  ├── drawBird()              Body, wing (animated), belly, eye, beak
-  ├── drawHUD()               Score (stroked) + high score (bitmap)
-  ├── drawTitleScreen()       Logo, bobbing bird, pulsing prompt
-  ├── drawGameOverScreen()    Panel, scores, pulsing restart text
-  └── drawPauseScreen()       Overlay + resume text
+    drawBackground()        Weather-aware sky gradient
+    drawSun()               Animated sun with pulsing rays (Day and Sunny modes)
+    drawStars()             110 twinkling star sprites (Night mode)
+    drawMoon()              Crescent moon with craters and glow (Night mode)
+    drawClouds()            Seven clouds, each made of eight overlapping ellipses
+    drawCitySilhouette()    Fourteen buildings with weather-tinted windows
+    drawPipes()             Three pipe pairs with cap, highlight and shadow stripes
+    drawGround()            Grass layer, dirt, scrolling tile detail, puddles in rain
+    drawBird()              Body, animated wing, belly, eye with shine, beak
+    drawHUD()               Centred score, top-left high score, weather indicator
+    drawFog()               Layered fog bands (Rain mode only)
+    drawRain()              220 angled rain particle lines (Rain mode only)
+    drawLightning()         Zigzag lightning bolt with glow pass (Rain mode only)
+    drawWeatherName()       Fading weather name announcement on mode change
+    drawTitleScreen()       Animated logo, bobbing bird, pulsing start prompt
+    drawGameOverScreen()    Score panel with restart prompt
+    drawPauseScreen()       Dimmed overlay with resume instruction
 ```
 
-### Game Logic
-| Function | Responsibility |
-|----------|---------------|
-| `updateGame()` | Master update dispatcher (calls below per state) |
-| `updateBird()` | Apply gravity, clamp velocity, compute tilt, step wing anim |
-| `updatePipes()` | Scroll, recycle off-screen pipes, detect score events |
-| `updateClouds()` | Scroll + wrap each cloud to the right edge |
-| `updateShake()` | Decay screen shake magnitude each frame |
-| `checkCollision()` | Circle–AABB test vs. pipes, plus boundary checks |
+### Game Logic Functions
 
-### Input & Timing
-| Function | Responsibility |
-|----------|---------------|
-| `timerCallback()` | GLUT timer fires every 16ms (~60 FPS), calls update + redisplay |
-| `doFlap()` | Unified flap action — triggers start, flap, or restart |
-| `keyboardInput()` | GLUT keyboard callback: Space, R, P, ESC |
-| `mouseInput()` | GLUT mouse callback: left click → doFlap |
-| `reshape()` | Recalculates viewport with pillar/letterbox for any window size |
+| Function            | Responsibility                                                  |
+|---------------------|-----------------------------------------------------------------|
+| `updateGame()`      | Master dispatcher — calls appropriate updates per game state    |
+| `updateBird()`      | Apply gravity, clamp velocity, compute tilt angle, step wing    |
+| `updatePipes()`     | Scroll pipes, recycle off-screen pairs, detect score events     |
+| `updateClouds()`    | Scroll and wrap each cloud to the right edge                    |
+| `updateRainDrops()` | Move rain particles downward and recycle off-screen drops       |
+| `updateWeather()`   | Advance auto-cycle timer, manage lightning trigger              |
+| `updateShake()`     | Decay screen shake offset each frame                            |
+| `checkCollision()`  | Circle-AABB test against pipes plus ground and ceiling bounds   |
+| `nextWeather()`     | Advance to the next weather mode and trigger transition effects |
 
-### Physics & Constants (tunable)
+### Input and Timing
+
+| Function          | Responsibility                                                   |
+|-------------------|------------------------------------------------------------------|
+| `timerCallback()` | GLUT timer firing every 16ms to drive 60 FPS update and redraw  |
+| `doFlap()`        | Unified flap handler for start, in-play flap and restart        |
+| `keyboardInput()` | ASCII key handler: Space, W, P, R, ESC                          |
+| `specialKeys()`   | Special key handler: F11 for full screen toggle                 |
+| `mouseInput()`    | Left click maps to doFlap                                       |
+| `reshape()`       | Computes pillarbox or letterbox viewport on window resize        |
+
+### Tunable Physics Constants
 
 ```c
-#define GRAVITY         -0.55f   // Downward acceleration per frame
-#define FLAP_VEL         10.5f   // Upward burst on flap
-#define MAX_FALL_VEL    -14.0f   // Terminal velocity
-#define PIPE_GAP        155.0f   // Vertical gap size (increase = easier)
-#define PIPE_SPACING    270.0f   // Horizontal gap between pipe pairs
-#define PIPE_BASE_SPEED   3.0f   // Starting scroll speed
-#define PIPE_SPEED_INC    0.004f // Speed increase per frame
+#define GRAVITY          -0.45f    /* Downward acceleration per frame          */
+#define FLAP_VEL          10.0f    /* Upward velocity applied on flap          */
+#define MAX_FALL_VEL     -13.0f    /* Terminal fall velocity                   */
+#define PIPE_GAP         190.0f    /* Vertical gap between pipes (larger = easier) */
+#define PIPE_SPACING     290.0f    /* Horizontal distance between pipe pairs   */
+#define PIPE_BASE_SPEED    2.7f    /* Starting scroll speed in pixels per frame */
+#define PIPE_SPEED_INC     0.002f  /* Speed increase per frame (difficulty ramp) */
+#define WEATHER_CYCLE_FRAMES 1800  /* Frames between automatic weather changes  */
 ```
 
 ---
 
-## 🧩 Key Technical Concepts Used
+## Key Technical Concepts
 
-| Concept | Where Used |
-|---------|-----------|
-| **Orthographic 2D projection** | `gluOrtho2D(0, 800, 0, 600)` — world coordinate system |
-| **Double buffering** | `GLUT_DOUBLE` — eliminates flickering |
-| **Timer-based game loop** | `glutTimerFunc(16, callback, 0)` — 60 FPS fixed timestep |
-| **Alpha blending** | `glEnable(GL_BLEND)` — cloud opacity, overlays, flash |
-| **Matrix transforms** | `glRotatef / glScalef` — bird tilt, cloud ellipses, beak |
-| **Parametric circle** | `cos(θ), sin(θ)` — bird body, wing, eyes |
-| **Lerp / Clamp** | Smooth tilt transition from current to target angle |
-| **Parallax scrolling** | Two cloud layers at different speeds simulate depth |
-| **AABB collision** | Fast rectangular hit detection for pipe shafts and caps |
+| Concept                    | Where Used                                                       |
+|----------------------------|------------------------------------------------------------------|
+| Orthographic 2D projection | `gluOrtho2D(0, 800, 0, 600)` defines the world coordinate space |
+| Double buffering           | `GLUT_DOUBLE` prevents screen tearing and flickering            |
+| Timer-based game loop      | `glutTimerFunc(16, callback, 0)` drives a fixed 60 FPS timestep |
+| Alpha blending             | `glEnable(GL_BLEND)` enables transparent overlays and clouds    |
+| Matrix transforms          | `glRotatef` and `glScalef` handle bird tilt and ellipse drawing |
+| Parametric circles         | `cos(a), sin(a)` constructs bird body, clouds and circle fills  |
+| Linear interpolation       | `lerpf()` smooths bird tilt angle toward its target each frame  |
+| Parallax scrolling         | Two cloud layers at different speeds give a depth illusion      |
+| Circle-AABB collision      | Efficient per-pipe hit test with forgiving hitbox radius        |
+| Weather state machine      | Four themes define sky colours, cloud tints and special effects |
 
 ---
 
-## 🔊 Sound Hooks (Extension)
+## Sound Extension
 
-Sound stubs are included as comments at the bottom of `flappy_bird.c`. To add audio using the Windows API:
+Sound stubs are included as comments at the bottom of `flappy_bird.c`. To add audio, use the Windows Multimedia API:
 
 ```c
 #include <windows.h>
-#include <mmsystem.h>   // add -lwinmm to linker flags
+#include <mmsystem.h>
+/* Add -lwinmm to linker flags */
 
 void playSound(int id) {
     const char *files[] = {"flap.wav", "score.wav", "die.wav"};
@@ -312,49 +352,48 @@ void playSound(int id) {
 }
 ```
 
-Then uncomment the three `/* playSound(...) */` lines in the source.
+Then uncomment the three `playSound()` calls in the source at the flap, score and collision events.
 
 ---
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
-| Problem | Solution |
-|---------|----------|
-| `fatal error: GL/glut.h` | Copy FreeGLUT headers to `<MinGW>\include\GL\` |
-| `undefined reference to glutInit` | Add `-lfreeglut` to linker settings |
-| `freeglut.dll is missing` | Copy `freeglut.dll` next to your `.exe` |
-| Game opens then immediately closes | Run from terminal to see the error message |
-| Very slow / choppy animation | Build in **Release** mode, not Debug |
-| Window appears black | Ensure OpenGL drivers are up to date |
-
----
-
-## 📈 Possible Improvements
-
-- [ ] Add `.wav` sound effects (flap, score, die)
-- [ ] Add medal system (bronze / silver / gold) based on score
-- [ ] Add scrolling parallax ground tiles at multiple depths
-- [ ] Implement a leaderboard saved to a `.txt` file
-- [ ] Add pipe color variety every N pipes
-- [ ] Add a day/night cycle background effect
-- [ ] Port to Linux/macOS with `freeglut` or `glut` package
+| Problem                                  | Solution                                                        |
+|------------------------------------------|-----------------------------------------------------------------|
+| `fatal error: GL/glut.h: No such file`   | Copy FreeGLUT headers into `<MinGW>\include\GL\`               |
+| `undefined reference to glutInit`        | Add `-lfreeglut` to linker settings in Code::Blocks            |
+| `The program cannot start: freeglut.dll` | Copy `freeglut.dll` into the same folder as the `.exe`         |
+| Window opens and immediately closes      | Run from Command Prompt to see the error output                |
+| Slow or choppy animation                 | Build in Release mode instead of Debug                         |
+| Window appears black                     | Update your graphics card drivers                              |
+| Game does not go full screen             | Press F11 inside the game window to toggle                     |
 
 ---
 
-## 👩‍💻 Author
+## Possible Extensions
 
-**Labony Sur**  
-Computer Science & Engineering  
+- Add WAV sound effects for flap, score and death events
+- Save high score to a text file between sessions
+- Add a medal system based on score thresholds
+- Add more pipe colour variations per weather mode
+- Port to Linux or macOS using the system freeglut package
+
+---
+
+## Author
+
+**Labony Sur**
+Computer Science and Engineering
 Computer Graphics Laboratory Project
 
-- GitHub: [@labonysur-cloud](https://github.com/labonysur-cloud)
+- GitHub: https://github.com/labonysur-cloud
 - Email: labonysur473@gmail.com
 
 ---
 
-## 📄 License
+## License
 
-This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License. See the LICENSE file for full details.
 
 ```
 MIT License
@@ -383,5 +422,5 @@ THE SOFTWARE.
 ---
 
 <p align="center">
-  Made with ❤️ using C, OpenGL, and GLUT &nbsp;·&nbsp; Computer Graphics Lab 2026
+  Built with C, OpenGL and GLUT &nbsp;|&nbsp; Computer Graphics Laboratory 2026
 </p>

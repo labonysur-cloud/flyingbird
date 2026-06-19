@@ -1,26 +1,32 @@
 /*
  * =========================================================
  *  FLAPPY BIRD CLONE  -  OpenGL / GLUT  -  C Language
- *  === ENHANCED EDITION ===
+ *  Enhanced Edition
  *
- *  NEW FEATURES:
- *   - Full screen launch (F11 to toggle)
- *   - 4 Dynamic Weather Modes: Day / Sunny / Rainy / Night
- *   - Auto weather cycle + press W to change manually
- *   - Rain particles with lightning bolts
- *   - Stars and moon for Night mode
- *   - Animated sun with rays for Sunny mode
- *   - Beautiful fluffy clouds (8-blob with shadow + highlight)
- *   - Fog layer in Rain mode
- *   - Easier physics: bigger gap, slower difficulty ramp
+ *  Author  : Labony Sur
+ *  Build   : Code::Blocks with MinGW + FreeGLUT
  *
- *  CONTROLS:
- *    SPACE / Left Click : Flap / Start / Restart
- *    W                  : Cycle weather mode
- *    P                  : Pause / Unpause
- *    R                  : Restart from Game Over
- *    F11                : Toggle Full Screen / Windowed
- *    ESC                : Quit
+ *  Features:
+ *   - Full screen launch, press F11 to toggle windowed
+ *   - Four dynamic weather modes: Day, Sunny, Rain, Night
+ *   - Auto weather cycle every 30 seconds, press W to change manually
+ *   - Rain mode: 220 particles, zigzag lightning bolts, fog overlay
+ *   - Night mode: 110 twinkling stars, glowing crescent moon
+ *   - Day/Sunny mode: animated sun with pulsing rays
+ *   - Beautiful clouds made of 8 overlapping ellipses
+ *   - Weather-aware colours for sky, pipes, ground and buildings
+ *   - Easier physics: larger gap, slower difficulty ramp
+ *
+ *  Controls:
+ *    SPACE or Left Click : Flap / Start / Restart
+ *    W                   : Cycle weather mode
+ *    P                   : Pause or unpause
+ *    R                   : Restart from Game Over
+ *    F11                 : Toggle full screen and windowed
+ *    ESC                 : Quit
+ *
+ *  Compile:
+ *    gcc flappy_bird.c -o flappy_bird.exe -lopengl32 -lglu32 -lfreeglut -lm -std=c99
  * =========================================================
  */
 
@@ -43,7 +49,7 @@
 /* ---- Bird (easier tuning) ---- */
 #define BIRD_X           160.0f
 #define BIRD_RADIUS      18.0f
-#define GRAVITY         -0.45f       /* Reduced from -0.55 → easier */
+#define GRAVITY         -0.45f       /* Reduced from -0.55, easier feel  */
 #define FLAP_VEL         10.0f
 #define MAX_FALL_VEL    -13.0f
 #define TILT_UP_DEG      25.0f
@@ -51,7 +57,7 @@
 
 /* ---- Pipes (easier tuning) ---- */
 #define PIPE_W           70.0f
-#define PIPE_GAP         190.0f      /* Increased from 155 → easier */
+#define PIPE_GAP         190.0f      /* Increased from 155, larger gap = easier */
 #define PIPE_SPACING     290.0f      /* More breathing room */
 #define PIPE_COUNT       3
 #define PIPE_MIN_H       80.0f
@@ -529,7 +535,7 @@ static void drawMoon(void){
     fillCircle(cx+r*0.05f,cy-r*0.10f,r*0.10f,10);
     fillCircle(cx-r*0.42f,cy+r*0.12f,r*0.10f,8);
 
-    /* Crescent shadow (dark circle offset) – simulate with themed sky color */
+    /* Crescent shadow (dark circle offset) - simulate with themed sky color */
     const WeatherTheme *th=&g_themes[WEATHER_NIGHT];
     glColor3f(th->topR,th->topG,th->topB);
     fillCircle(cx+r*0.40f,cy,r*0.82f,18);
@@ -698,7 +704,7 @@ static void drawCitySilhouette(void){
         glColor3f(br,bg,bb);
         fillRect(bx,by,bw,bh);
 
-        /* Windows – different colours at night vs day */
+        /* Windows - different colours at night vs day */
         float wr,wg,wb,wa;
         if(g_weather==WEATHER_NIGHT){
             wr=1.0f; wg=0.85f; wb=0.45f; wa=0.90f; /* warm orange glow */
