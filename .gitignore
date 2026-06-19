@@ -1,0 +1,23 @@
+# ── Compiled binaries ──────────────────────────
+*.exe
+*.o
+*.a
+*.dll
+
+# ── Build directories ───────────────────────────
+bin/
+obj/
+
+# ── Code::Blocks auto-generated files ──────────
+*.layout
+*.depend
+
+# ── OS junk ─────────────────────────────────────
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# ── Editor temp files ───────────────────────────
+*.bak
+*.swp
+*~
