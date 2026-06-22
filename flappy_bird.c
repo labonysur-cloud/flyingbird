@@ -1464,8 +1464,8 @@ static void drawGameOverScreen(void){
     /* Dark overlay */
     col4(0,0,0,110); fillRect(0,0,WORLD_W,WORLD_H);
 
-    /* Panel */
-    float px=WORLD_W/2.f-180.f, py=WORLD_H/2.f-80.f;
+    /* Panel — shifted up to leave room for the weather selector below */
+    float px=WORLD_W/2.f-180.f, py=385.f;
     col4(250,242,205,245); fillRect(px,py,360.f,180.f);
     col(90,60,20);   outlineRect(px,py,360.f,180.f,4.f);
     col(180,130,50); outlineRect(px+4.f,py+4.f,352.f,172.f,3.f);
@@ -1485,6 +1485,10 @@ static void drawGameOverScreen(void){
 
     /* Play Again button area */
     drawPlayAgainButton(px,py);
+
+    /* Weather / theme selector — same as title screen so players can
+       pick their preferred theme before hitting Play Again.           */
+    drawWeatherSelector();
 }
 
 /* ================================================================
@@ -1905,17 +1909,16 @@ static void mouseInput(int button,int state,int x,int y){
         exit(0);
     }
 
-    if(g_state==STATE_TITLE){
-        /* Check weather buttons first */
+    if(g_state==STATE_TITLE || g_state==STATE_GAMEOVER){
+        /* Weather buttons work on both title and game-over screens */
         int hw=hoveredWeatherButton();
         if(hw>=0){
             setWeather((WeatherMode)hw);
             playSound(SFX_CLICK);
             return;
         }
-        /* Anywhere else on title = start */
-        doFlap();
-        return;
+        /* Clicking elsewhere on title starts the game */
+        if(g_state==STATE_TITLE){ doFlap(); return; }
     }
 
     if(g_state==STATE_GAMEOVER && g_gameOverDelay<=0){
@@ -1938,8 +1941,8 @@ static void mouseInput(int button,int state,int x,int y){
 static void passiveMotion(int x,int y){
     screenToWorld(x,y,&g_mouseX,&g_mouseY);
 
-    /* Weather button hover */
-    if(g_state==STATE_TITLE){
+    /* Weather button hover — active on title AND game-over screens */
+    if(g_state==STATE_TITLE || g_state==STATE_GAMEOVER){
         int prev=g_hoveredWeather;
         g_hoveredWeather=hoveredWeatherButton();
         if(g_hoveredWeather!=prev && g_hoveredWeather>=0)
