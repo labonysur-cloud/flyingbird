@@ -116,6 +116,11 @@
 #define PLAY_BTN_W       200.0f
 #define PLAY_BTN_H        46.0f
 
+/* Close (quit) button — top-right corner */
+#define CLOSE_BTN_SIZE    30.0f
+#define CLOSE_BTN_X      (WORLD_W - CLOSE_BTN_SIZE - 8.0f)
+#define CLOSE_BTN_Y      (WORLD_H - CLOSE_BTN_SIZE - 8.0f)
+
 /* Sound sample rate */
 #define SFX_RATE         22050
 #define SFX_BUF          65536   /* 64 KB per sound, enough for ~1.5 sec */
@@ -247,6 +252,7 @@ static float       g_mouseX = 0, g_mouseY = 0;
 /* Hover states */
 static int         g_hoveredWeather   = -1;  /* -1 = none */
 static int         g_hoveredPlayAgain = 0;
+static int         g_hoveredClose     = 0;
 
 /* Viewport (for mouse coordinate conversion) */
 static int         g_vpX = 0, g_vpY = 0, g_vpW = WIN_W, g_vpH = WIN_H;
@@ -1513,6 +1519,47 @@ static void drawWeatherName(void){
 }
 
 /* ================================================================
+ *  DRAW: CLOSE BUTTON  (top-right corner, always visible)
+ * ================================================================ */
+
+static void drawCloseButton(void) {
+    float bx  = CLOSE_BTN_X;
+    float by  = CLOSE_BTN_Y;
+    float sz  = CLOSE_BTN_SIZE;
+    float cx  = bx + sz * 0.5f;
+    float cy  = by + sz * 0.5f;
+    float arm = sz * 0.22f;   /* half-length of each X arm */
+
+    /* Shadow */
+    col4(0, 0, 0, 60);
+    fillRoundRect(bx + 2.f, by - 2.f, sz, sz, 6.f);
+
+    /* Button body — brighter red on hover */
+    if (g_hoveredClose) col4(235, 60,  60, 245);
+    else                col4(195, 45,  45, 215);
+    fillRoundRect(bx, by, sz, sz, 6.f);
+
+    /* Top highlight strip (gives depth) */
+    col4(255, 130, 130, g_hoveredClose ? 90 : 55);
+    fillRoundRect(bx + 2.f, by + sz * 0.55f, sz - 4.f, sz * 0.4f, 5.f);
+
+    /* Border */
+    col4(255, 110, 110, 180);
+    outlineRect(bx, by, sz, sz, 1.5f);
+
+    /* White X \u2014 two crossing lines */
+    col(255, 255, 255);
+    glLineWidth(g_hoveredClose ? 2.8f : 2.2f);
+    glBegin(GL_LINES);
+        glVertex2f(cx - arm, cy - arm);   /* top-left  -> bot-right */
+        glVertex2f(cx + arm, cy + arm);
+        glVertex2f(cx + arm, cy - arm);   /* top-right -> bot-left  */
+        glVertex2f(cx - arm, cy + arm);
+    glEnd();
+    glLineWidth(2.f);
+}
+
+/* ================================================================
  *  DISPLAY CALLBACK
  * ================================================================ */
 
@@ -1551,6 +1598,9 @@ static void display(void){
     if(g_weather==WEATHER_RAIN){ drawFog(); drawRain(); drawLightning(); }
     drawParticles();      /* GL_POINTS — score sparkle burst */
     drawWeatherName();
+
+    /* Close button — always on top, drawn last so it’s never hidden */
+    drawCloseButton();
 
     /* Weather change flash */
     if(g_wFlashTicks>0){
@@ -1849,6 +1899,12 @@ static void mouseInput(int button,int state,int x,int y){
     if(button!=GLUT_LEFT_BUTTON||state!=GLUT_DOWN) return;
     screenToWorld(x,y,&g_mouseX,&g_mouseY);
 
+    /* Close button — checked first, works in every game state */
+    if(isInRect(g_mouseX,g_mouseY,CLOSE_BTN_X,CLOSE_BTN_Y,CLOSE_BTN_SIZE,CLOSE_BTN_SIZE)){
+        playSound(SFX_CLICK);
+        exit(0);
+    }
+
     if(g_state==STATE_TITLE){
         /* Check weather buttons first */
         int hw=hoveredWeatherButton();
@@ -1900,6 +1956,15 @@ static void passiveMotion(int x,int y){
             playSound(SFX_HOVER);
     } else {
         g_hoveredPlayAgain=0;
+    }
+
+    /* Close button hover — always active */
+    {
+        int prev=g_hoveredClose;
+        g_hoveredClose=isInRect(g_mouseX,g_mouseY,
+                                CLOSE_BTN_X,CLOSE_BTN_Y,
+                                CLOSE_BTN_SIZE,CLOSE_BTN_SIZE);
+        if(g_hoveredClose && !prev) playSound(SFX_HOVER);
     }
 }
 
