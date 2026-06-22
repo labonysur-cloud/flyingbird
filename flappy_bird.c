@@ -62,7 +62,7 @@
 
 /* Pipes */
 #define PIPE_W           70.0f
-#define PIPE_GAP         190.0f
+
 #define PIPE_SPACING     290.0f
 #define PIPE_COUNT       3
 #define PIPE_MIN_H       80.0f
@@ -76,7 +76,7 @@
 #define GRASS_H_RATIO    0.30f
 
 /* Weather */
-#define WEATHER_COUNT        4
+#define WEATHER_COUNT        5
 #define WEATHER_CYCLE_FRAMES 1800
 
 /* Clouds */
@@ -105,11 +105,11 @@
 #define GAMEOVER_DELAY   90   /* 1.5 seconds at 60 fps */
 
 /* Weather selector button layout (title screen) */
-#define WBTN_W           128.0f
+#define WBTN_W           118.0f
 #define WBTN_H            70.0f
-#define WBTN_GAP          10.0f
-/* Total width = 4*128 + 3*10 = 542; start X = (800-542)/2 = 129 */
-#define WBTN_STARTX      129.0f
+#define WBTN_GAP          8.0f
+/* Total width = 5*118 + 4*8 = 622; start X = (800-622)/2 = 89 */
+#define WBTN_STARTX      89.0f
 #define WBTN_Y           265.0f   /* bottom edge of buttons */
 
 /* Play Again button (game over screen) */
@@ -144,8 +144,15 @@ typedef enum {
     WEATHER_DAY   = 0,
     WEATHER_SUNNY = 1,
     WEATHER_RAIN  = 2,
-    WEATHER_NIGHT = 3
+    WEATHER_NIGHT = 3,
+    WEATHER_SNOW  = 4
 } WeatherMode;
+
+typedef enum {
+    DIFF_EASY = 0,
+    DIFF_NORMAL = 1,
+    DIFF_HARD = 2
+} Difficulty;
 
 /* ================================================================
  *  STRUCTS
@@ -157,6 +164,8 @@ typedef struct { float x, w, h, r, g, b; } Building;
 typedef struct { float y, vy, angle; int wingFrame, wingTimer, alive; } Bird;
 typedef struct { float x, y, speed, alpha, len; } RainDrop;
 typedef struct { float x, y, size, phase; } Star;
+typedef struct { float x, y, speed, size, drift; } SnowFlake;
+typedef struct { float x, y, vx, vy, life, len; int active; } ShootingStar;
 
 /* Particle — one GL_POINTS sparkle emitted on every score */
 #define PARTICLE_COUNT 60
@@ -180,7 +189,7 @@ typedef struct {
     const char *desc;
 } WeatherTheme;
 
-static const WeatherTheme g_themes[4] = {
+static const WeatherTheme g_themes[5] = {
     /* DAY */
     { 0.22f,0.60f,0.90f,  0.45f,0.83f,0.97f,
       1.00f,1.00f,1.00f,0.92f,  0.49f,0.76f,0.26f,  0.0f,
@@ -196,7 +205,11 @@ static const WeatherTheme g_themes[4] = {
     /* NIGHT */
     { 0.02f,0.03f,0.18f,  0.05f,0.10f,0.34f,
       0.80f,0.86f,0.96f,0.65f,  0.12f,0.32f,0.14f,  0.7f,
-      0.12f,0.15f,0.32f,  "Night", "Stars, moon, city lights" }
+      0.12f,0.15f,0.32f,  "Night", "Stars, moon, city lights" },
+    /* SNOW */
+    { 0.85f,0.92f,1.0f,   0.95f,0.97f,1.0f,
+      1.0f,1.0f,1.0f,0.85f,   0.45f,0.65f,0.8f,  0.1f,
+      0.80f,0.88f,0.98f,  "Snow", "Freezing cold, snowflakes" }
 };
 
 /* ================================================================
@@ -211,11 +224,16 @@ static Cloud      g_clouds[CLOUD_COUNT];
 static Building   g_buildings[BUILDING_COUNT];
 static RainDrop   g_rain[RAIN_COUNT];
 static Star       g_stars[STAR_COUNT];
+static SnowFlake  g_snow[180];
+static ShootingStar g_shootingStars[3];
 static Particle   g_particles[PARTICLE_COUNT];
 
 static int        g_score     = 0;
 static int        g_highScore = 0;
 static float      g_pipeSpeed = PIPE_BASE_SPEED;
+static float      g_pipeGap   = 190.0f;
+static Difficulty g_difficulty = DIFF_NORMAL;
+static int        g_hoveredDiff = -1;
 
 /* Screen shake */
 static float      g_shakeX = 0, g_shakeY = 0;
@@ -245,6 +263,7 @@ static int         g_fullscreen = 1;
 
 /* Game over delay */
 static int         g_gameOverDelay = 0;
+static float       g_shearX = 0.f;
 
 /* Mouse tracking (world space) */
 static float       g_mouseX = 0, g_mouseY = 0;
@@ -458,6 +477,105 @@ static void bresenhamLine(int x1, int y1, int x2, int y2) {
 }
 
 /* ================================================================
+ *  ALGORITHM 4 : CUBIC BEZIER CURVE
+ *
+ *  Principle: Interpolate between 4 control points P0, P1, P2, P3.
+ *  Formula: B(t) = (1-t)³P0 + 3(1-t)²tP1 + 3(1-t)t²P2 + t³P3
+ *  Usage: Animated water wave on the ground.
+ * ================================================================ */
+static void bezierPoint(float t, float *px, float *py, float p0x, float p0y, float p1x, float p1y, float p2x, float p2y, float p3x, float p3y) {
+    float u = 1.0f - t;
+    float tt = t * t;
+    float uu = u * u;
+    float uuu = uu * u;
+    float ttt = tt * t;
+
+    *px = uuu * p0x + 3 * uu * t * p1x + 3 * u * tt * p2x + ttt * p3x;
+    *py = uuu * p0y + 3 * uu * t * p1y + 3 * u * tt * p2y + ttt * p3y;
+}
+
+static void drawBezierWave(void) {
+    float yBase = GROUND_Y + GROUND_H * 0.7f;
+    float anim = sinf(g_frame * 0.03f) * 8.0f;
+    float p0x = 0, p0y = yBase + anim;
+    float p1x = WORLD_W * 0.33f, p1y = yBase - anim * 2.0f;
+    float p2x = WORLD_W * 0.66f, p2y = yBase + anim * 2.0f;
+    float p3x = WORLD_W, p3y = yBase - anim;
+
+    col4(100, 200, 255, 120);
+    glLineWidth(2.5f);
+    glBegin(GL_LINE_STRIP);
+    for (int i = 0; i <= 40; i++) {
+        float t = i / 40.0f;
+        float bx, by;
+        bezierPoint(t, &bx, &by, p0x, p0y, p1x, p1y, p2x, p2y, p3x, p3y);
+        glVertex2f(bx, by);
+    }
+    glEnd();
+    glLineWidth(2.0f);
+}
+
+/* ================================================================
+ *  ALGORITHM 5 : COHEN-SUTHERLAND LINE CLIPPING
+ *
+ *  Principle: Clips a line segment against a rectangular window using
+ *  outcodes (LEFT=1, RIGHT=2, BOTTOM=4, TOP=8).
+ *  Usage: Clip rain drops against the ground boundary.
+ * ================================================================ */
+#define CS_INSIDE 0
+#define CS_LEFT   1
+#define CS_RIGHT  2
+#define CS_BOTTOM 4
+#define CS_TOP    8
+
+static int csOutcode(float x, float y, float xmin, float xmax, float ymin, float ymax) {
+    int code = CS_INSIDE;
+    if (x < xmin) code |= CS_LEFT;
+    else if (x > xmax) code |= CS_RIGHT;
+    if (y < ymin) code |= CS_BOTTOM;
+    else if (y > ymax) code |= CS_TOP;
+    return code;
+}
+
+static int cohenSutherland(float *x1, float *y1, float *x2, float *y2, float xmin, float xmax, float ymin, float ymax) {
+    int outcode0 = csOutcode(*x1, *y1, xmin, xmax, ymin, ymax);
+    int outcode1 = csOutcode(*x2, *y2, xmin, xmax, ymin, ymax);
+    int accept = 0;
+
+    while (1) {
+        if (!(outcode0 | outcode1)) {
+            accept = 1; break;
+        } else if (outcode0 & outcode1) {
+            break;
+        } else {
+            float x, y;
+            int outcodeOut = outcode0 ? outcode0 : outcode1;
+            if (outcodeOut & CS_TOP) {
+                x = *x1 + (*x2 - *x1) * (ymax - *y1) / (*y2 - *y1);
+                y = ymax;
+            } else if (outcodeOut & CS_BOTTOM) {
+                x = *x1 + (*x2 - *x1) * (ymin - *y1) / (*y2 - *y1);
+                y = ymin;
+            } else if (outcodeOut & CS_RIGHT) {
+                y = *y1 + (*y2 - *y1) * (xmax - *x1) / (*x2 - *x1);
+                x = xmax;
+            } else if (outcodeOut & CS_LEFT) {
+                y = *y1 + (*y2 - *y1) * (xmin - *x1) / (*x2 - *x1);
+                x = xmin;
+            }
+            if (outcodeOut == outcode0) {
+                *x1 = x; *y1 = y;
+                outcode0 = csOutcode(*x1, *y1, xmin, xmax, ymin, ymax);
+            } else {
+                *x2 = x; *y2 = y;
+                outcode1 = csOutcode(*x2, *y2, xmin, xmax, ymin, ymax);
+            }
+        }
+    }
+    return accept;
+}
+
+/* ================================================================
  *  TEXT
  * ================================================================ */
 
@@ -641,10 +759,24 @@ static void initRain(void){
 static void initStars(void){
     for(int i=0;i<STAR_COUNT;i++){
         g_stars[i].x=randf(0.f,WORLD_W);
-        g_stars[i].y=randf(GROUND_Y+GROUND_H+30.f,WORLD_H-8.f);
-        g_stars[i].size=randf(0.8f,2.8f);
-        g_stars[i].phase=randf(0.f,6.28f);
+        g_stars[i].y=randf(WORLD_H*0.4f,WORLD_H);
+        g_stars[i].size=randf(1.f,2.5f);
+        g_stars[i].phase=randf(0.f,PI2);
     }
+}
+
+static void initSnow(void) {
+    for (int i=0; i<180; i++) {
+        g_snow[i].x = randf(0.f, WORLD_W);
+        g_snow[i].y = randf(0.f, WORLD_H);
+        g_snow[i].speed = randf(1.5f, 4.0f);
+        g_snow[i].size = randf(2.f, 5.f);
+        g_snow[i].drift = randf(-1.f, 1.f);
+    }
+}
+
+static void initShootingStars(void) {
+    for (int i=0; i<3; i++) { g_shootingStars[i].active = 0; }
 }
 
 static void initBird(void){
@@ -653,8 +785,8 @@ static void initBird(void){
 }
 
 static void initPipes(void){
-    float minC=GROUND_Y+GROUND_H*GRASS_H_RATIO+PIPE_MIN_H+PIPE_GAP/2.f;
-    float maxC=WORLD_H-PIPE_MIN_H-PIPE_GAP/2.f;
+    float minC=GROUND_Y+GROUND_H*GRASS_H_RATIO+PIPE_MIN_H+g_pipeGap/2.f;
+    float maxC=WORLD_H-PIPE_MIN_H-g_pipeGap/2.f;
     for(int i=0;i<PIPE_COUNT;i++){
         g_pipes[i].x=900.f+i*PIPE_SPACING;
         g_pipes[i].gapCenterY=randf(minC,maxC);
@@ -667,11 +799,38 @@ static void initPipes(void){
  * ================================================================ */
 
 static void resetGame(void){
-    g_score=0; g_pipeSpeed=PIPE_BASE_SPEED;
+    g_score=0;
+    if (g_difficulty == DIFF_EASY) {
+        g_pipeSpeed = 1.8f;
+        g_pipeGap = 230.0f;
+    } else if (g_difficulty == DIFF_HARD) {
+        g_pipeSpeed = 4.0f;
+        g_pipeGap = 140.0f;
+    } else { // Normal
+        g_pipeSpeed = 2.7f;
+        g_pipeGap = 190.0f;
+    }
     g_shakeTicks=0; g_flashTicks=0; g_groundScroll=0.f;
     g_gameOverDelay=0;
+    g_shearX=0.f;
     initBird(); initPipes();
     g_state=STATE_PLAYING;
+}
+
+static void loadHighScore(void) {
+    FILE *f = fopen("highscore.txt", "r");
+    if (f) {
+        fscanf(f, "%d", &g_highScore);
+        fclose(f);
+    }
+}
+
+static void saveHighScore(void) {
+    FILE *f = fopen("highscore.txt", "w");
+    if (f) {
+        fprintf(f, "%d\n", g_highScore);
+        fclose(f);
+    }
 }
 
 static void init(void){
@@ -685,7 +844,8 @@ static void init(void){
     glMatrixMode(GL_MODELVIEW); glLoadIdentity();
 
     initClouds(); initBuildings(); initBird(); initPipes();
-    initRain(); initStars();
+    initRain(); initStars(); initSnow(); initShootingStars();
+    loadHighScore();
 
     for(int i=0;i<8;i++) g_boltSegs[i]=randf(-25.f,25.f);
 
@@ -757,13 +917,14 @@ static void updateWeather(void){
 
 static void drawBackground(void){
     const WeatherTheme *t=&g_themes[g_weather];
+
     glBegin(GL_QUADS);
-        glColor3f(t->botR,t->botG,t->botB);
-        glVertex2f(0,GROUND_Y+GROUND_H);
-        glVertex2f(WORLD_W,GROUND_Y+GROUND_H);
-        glColor3f(t->topR,t->topG,t->topB);
+        colF(t->botR,t->botG,t->botB);
+        glVertex2f(0.f,0.f);
+        glVertex2f(WORLD_W,0.f);
+        colF(t->topR,t->topG,t->topB);
         glVertex2f(WORLD_W,WORLD_H);
-        glVertex2f(0,WORLD_H);
+        glVertex2f(0.f,WORLD_H);
     glEnd();
 }
 
@@ -850,11 +1011,15 @@ static void drawRain(void){
     glLineWidth(1.5f);
     for(int i=0;i<RAIN_COUNT;i++){
         col4(180,205,230,(int)(g_rain[i].alpha*210));
-        float x=g_rain[i].x, y=g_rain[i].y, len=g_rain[i].len;
-        glBegin(GL_LINES);
-            glVertex2f(x,y);
-            glVertex2f(x-len*0.28f,y-len);
-        glEnd();
+        float x1=g_rain[i].x, y1=g_rain[i].y, len=g_rain[i].len;
+        float x2=x1-len*0.28f, y2=y1-len;
+        /* ALGORITHM 5: Cohen-Sutherland Line Clipping for rain drops */
+        if(cohenSutherland(&x1, &y1, &x2, &y2, 0.f, WORLD_W, GROUND_Y+GROUND_H, WORLD_H-20.f)) {
+            glBegin(GL_LINES);
+                glVertex2f(x1,y1);
+                glVertex2f(x2,y2);
+            glEnd();
+        }
     }
     glLineWidth(2.f);
 }
@@ -954,6 +1119,151 @@ static void drawClouds(void){
  *  DRAW: CITY SILHOUETTE
  * ================================================================ */
 
+static void updateSnow(void) {
+    for (int i=0; i<180; i++) {
+        g_snow[i].y -= g_snow[i].speed;
+        g_snow[i].x += g_snow[i].drift + sinf(g_frame * 0.05f + i) * 0.5f;
+        if (g_snow[i].y < GROUND_Y) {
+            g_snow[i].y = WORLD_H + 10.f;
+            g_snow[i].x = randf(0.f, WORLD_W);
+        }
+    }
+}
+
+static void updateShootingStars(void) {
+    for (int i=0; i<3; i++) {
+        if (g_shootingStars[i].active) {
+            g_shootingStars[i].x += g_shootingStars[i].vx;
+            g_shootingStars[i].y += g_shootingStars[i].vy;
+            g_shootingStars[i].life--;
+            if (g_shootingStars[i].life <= 0) g_shootingStars[i].active = 0;
+        } else if (rand()%300 == 0) { // 1/300 chance
+            g_shootingStars[i].active = 1;
+            g_shootingStars[i].x = randf(WORLD_W * 0.5f, WORLD_W + 50.f);
+            g_shootingStars[i].y = randf(WORLD_H * 0.6f, WORLD_H + 50.f);
+            g_shootingStars[i].vx = randf(-15.f, -8.f);
+            g_shootingStars[i].vy = randf(-10.f, -5.f);
+            g_shootingStars[i].len = randf(40.f, 100.f);
+            g_shootingStars[i].life = 60;
+        }
+    }
+}
+
+static void drawSnow(void) {
+    for (int i=0; i<180; i++) {
+        col4(255, 255, 255, 220);
+        glPointSize(g_snow[i].size);
+        glBegin(GL_POINTS);
+            glVertex2f(g_snow[i].x, g_snow[i].y);
+        glEnd();
+    }
+    glPointSize(1.f);
+}
+
+static void drawShootingStars(void) {
+    glLineWidth(2.5f);
+    for (int i=0; i<3; i++) {
+        if (g_shootingStars[i].active) {
+            float alpha = (float)g_shootingStars[i].life / 60.f;
+            col4(255, 255, 255, (int)(alpha * 255));
+            glBegin(GL_LINES);
+            glVertex2f(g_shootingStars[i].x, g_shootingStars[i].y);
+            col4(255, 255, 255, 0);
+            float dx = g_shootingStars[i].vx;
+            float dy = g_shootingStars[i].vy;
+            float mag = sqrtf(dx*dx + dy*dy);
+            glVertex2f(g_shootingStars[i].x - (dx/mag)*g_shootingStars[i].len, g_shootingStars[i].y - (dy/mag)*g_shootingStars[i].len);
+            glEnd();
+        }
+    }
+    glLineWidth(2.0f);
+}
+
+static void drawMountains(void) {
+    const WeatherTheme *t = &g_themes[g_weather];
+    /* Layer 1 - back */
+    colF(t->botR*0.5f, t->botG*0.5f, t->botB*0.5f);
+    float scroll1 = g_groundScroll * 0.05f;
+    glBegin(GL_TRIANGLE_FAN);
+    glVertex2f(WORLD_W, GROUND_Y);
+    glVertex2f(0, GROUND_Y);
+    for (int i=0; i<=6; i++) {
+        float x = (WORLD_W / 5.f) * i - fmodf(scroll1, WORLD_W/5.f);
+        float y = GROUND_Y + GROUND_H + 150.f + sinf(i * 123.45f) * 100.f;
+        glVertex2f(x, y);
+    }
+    glEnd();
+
+    /* Layer 2 - mid */
+    colF(t->botR*0.65f, t->botG*0.65f, t->botB*0.65f);
+    float scroll2 = g_groundScroll * 0.1f;
+    glBegin(GL_TRIANGLE_FAN);
+    glVertex2f(WORLD_W, GROUND_Y);
+    glVertex2f(0, GROUND_Y);
+    for (int i=0; i<=8; i++) {
+        float x = (WORLD_W / 7.f) * i - fmodf(scroll2, WORLD_W/7.f);
+        float y = GROUND_Y + GROUND_H + 80.f + sinf(i * 321.12f) * 60.f;
+        glVertex2f(x, y);
+    }
+    glEnd();
+
+    /* Layer 3 - front */
+    colF(t->botR*0.8f, t->botG*0.8f, t->botB*0.8f);
+    float scroll3 = g_groundScroll * 0.2f;
+    glBegin(GL_TRIANGLE_FAN);
+    glVertex2f(WORLD_W, GROUND_Y);
+    glVertex2f(0, GROUND_Y);
+    for (int i=0; i<=10; i++) {
+        float x = (WORLD_W / 9.f) * i - fmodf(scroll3, WORLD_W/9.f);
+        float y = GROUND_Y + GROUND_H + 30.f + sinf(i * 555.55f) * 40.f;
+        glVertex2f(x, y);
+    }
+    glEnd();
+}
+
+static void drawTrees(void) {
+    float baseY = GROUND_Y + GROUND_H;
+    float scroll = fmodf(g_groundScroll, 100.f);
+    for (int i=-1; i<=8; i++) {
+        float x = i * 100.f - scroll + 50.f;
+        /* Trunk */
+        col(100, 70, 40);
+        fillRect(x - 4.f, baseY, 8.f, 30.f);
+        /* Canopy */
+        if (g_weather == WEATHER_SNOW) col(200, 220, 240); // icy blue green
+        else if (g_weather == WEATHER_NIGHT) col(30, 60, 30);
+        else col(40, 140, 50);
+        float anim = sinf(g_frame * 0.05f + i) * 2.f;
+        fillCircle(x + anim, baseY + 30.f, 20.f, 12);
+        
+        if (g_weather == WEATHER_SNOW) {
+            col(255, 255, 255);
+            fillCircle(x + anim, baseY + 42.f, 12.f, 8);
+        }
+    }
+}
+
+static void drawRainbow(void) {
+    float cx = WORLD_W * 0.8f;
+    float cy = GROUND_Y + GROUND_H;
+    float colors[6][3] = {
+        {255,0,0}, {255,127,0}, {255,255,0},
+        {0,255,0}, {0,0,255}, {139,0,255}
+    };
+    glLineWidth(12.f);
+    for (int i=0; i<6; i++) {
+        col4((int)colors[i][0], (int)colors[i][1], (int)colors[i][2], 100);
+        float r = 130.f - i * 10.f;
+        glBegin(GL_LINE_STRIP);
+        for (int a=0; a<=20; a++) {
+            float ang = 3.1415926535f * a / 20.f;
+            glVertex2f(cx + cosf(ang)*r, cy + sinf(ang)*r);
+        }
+        glEnd();
+    }
+    glLineWidth(2.f);
+}
+
 static void drawCitySilhouette(void){
     float gs=GROUND_Y+GROUND_H*GRASS_H_RATIO;
     float dark=g_themes[g_weather].darkness;
@@ -1007,6 +1317,9 @@ static void drawGround(void){
     colF(t->grassR*0.65f,t->grassG*0.65f,t->grassB*0.65f);
     fillRect(0,GROUND_Y+grassH-2.f,WORLD_W,3.f);
 
+    /* ALGORITHM 4: Cubic Bezier Curve (water wave) */
+    drawBezierWave();
+
     /* Rain puddles */
     if(g_weather==WEATHER_RAIN){
         col4(120,145,175,90);
@@ -1034,6 +1347,17 @@ static void drawBird(void){
     glPushMatrix();
     glTranslatef(BIRD_X,g_bird.y,0.f);
     glRotatef(g_bird.angle,0.f,0.f,1.f);
+
+    /* Shear Transformation: bird skews sideways when it dies */
+    if (g_shearX > 0.001f) {
+        float m[16] = {
+            1.0f,     0.0f, 0.0f, 0.0f,
+            g_shearX, 1.0f, 0.0f, 0.0f,
+            0.0f,     0.0f, 1.0f, 0.0f,
+            0.0f,     0.0f, 0.0f, 1.0f
+        };
+        glMultMatrixf(m);
+    }
 
     /* Body — filled with GL_TRIANGLE_FAN (polygon primitive) */
     col(255,195,50); fillCircle(0,0,BIRD_RADIUS,20);
@@ -1170,13 +1494,21 @@ static void drawSinglePipe(float x,float y1,float y2,int flipped){
     glPointSize(2.0f);
     ddaOutlineRect(x - capOff, capY, capW, capH);
     glPointSize(1.0f);
+
+    /* Snow-capped pipes */
+    if(g_weather==WEATHER_SNOW && !flipped){
+        col(240, 248, 255);
+        fillRect(x-capOff+2.f, capY + capH - 2.f, capW-4.f, 6.f);
+        fillCircle(x-capOff+4.f, capY + capH, 4.f, 8);
+        fillCircle(x-capOff+capW-4.f, capY + capH, 4.f, 8);
+    }
 }
 
 static void drawPipes(void){
     float gs=GROUND_Y+GROUND_H*GRASS_H_RATIO;
     for(int i=0;i<PIPE_COUNT;i++){
-        float gT=g_pipes[i].gapCenterY+PIPE_GAP/2.f;
-        float gB=g_pipes[i].gapCenterY-PIPE_GAP/2.f;
+        float gT=g_pipes[i].gapCenterY+g_pipeGap/2.f;
+        float gB=g_pipes[i].gapCenterY-g_pipeGap/2.f;
         drawSinglePipe(g_pipes[i].x,gs,gB,0);
         drawSinglePipe(g_pipes[i].x,gT,WORLD_H+10.f,1);
     }
@@ -1195,6 +1527,11 @@ static void drawHUD(void){
     col(255,255,255); strokeText(cx-sw/2.f,cy,0.20f,buf);
     sprintf(buf,"BEST: %d",g_highScore);
     col(50,50,50); bitmapText(10.f,WORLD_H-22.f,GLUT_BITMAP_HELVETICA_18,buf);
+    
+    char dbuf[32];
+    sprintf(dbuf, "%s", g_difficulty == DIFF_EASY ? "EASY" : (g_difficulty == DIFF_HARD ? "HARD" : "NORMAL"));
+    col(255, 255, 255);
+    strokeText(10.f, WORLD_H - 55.f, 0.08f, dbuf);
     col(200,200,200);
     bitmapText(WORLD_W-115.f,WORLD_H-22.f,GLUT_BITMAP_HELVETICA_12,"[W] Weather");
 }
@@ -1270,8 +1607,57 @@ static void drawWeatherIcon(WeatherMode w,float cx,float cy){
             fillCircle(cx-14.f,cy,1.5f,6);
             fillCircle(cx-8.f,cy-8.f,1.8f,6);
         } break;
+        case WEATHER_SNOW:{
+            /* Snowflake icon */
+            col(255,255,255);
+            glLineWidth(2.f);
+            for(int i=0;i<3;i++){
+                float a = 3.1415926535f * i / 3.f;
+                glBegin(GL_LINES);
+                glVertex2f(cx + cosf(a)*12.f, cy + sinf(a)*12.f);
+                glVertex2f(cx - cosf(a)*12.f, cy - sinf(a)*12.f);
+                glEnd();
+            }
+            glPointSize(3.f);
+            glBegin(GL_POINTS);
+            for(int i=0;i<6;i++){
+                float a = PI2 * i / 6.f;
+                glVertex2f(cx + cosf(a)*8.f, cy + sinf(a)*8.f);
+            }
+            glEnd();
+            glPointSize(1.f);
+        } break;
     }
     glLineWidth(2.f);
+}
+
+static void drawDifficultySelector(void) {
+    float startX = WORLD_W/2.f - 170.f;
+    float y = 180.f;
+    float w = 110.f;
+    float h = 40.f;
+    const char* labels[] = {"EASY", "NORMAL", "HARD"};
+    
+    for (int i=0; i<3; i++) {
+        float bx = startX + i*(w + 10.f);
+        if (i == g_difficulty) {
+            col(255, 255, 0);
+            outlineRect(bx-2.f, y-2.f, w+4.f, h+4.f, 3.f);
+        }
+        if (i == DIFF_EASY) col(100, 200, 100);
+        else if (i == DIFF_NORMAL) col(200, 200, 100);
+        else col(200, 100, 100);
+        
+        if (i == g_hoveredDiff) col4(255, 255, 255, 180);
+        
+        fillRect(bx, y, w, h);
+        col(0,0,0);
+        outlineRect(bx, y, w, h, 2.f);
+        
+        float lw = strokeWidth(labels[i], 0.08f);
+        col(255, 255, 255);
+        strokeText(bx + w/2.f - lw/2.f, y + 10.f, 0.08f, labels[i]);
+    }
 }
 
 static void drawWeatherSelector(void){
@@ -1366,6 +1752,7 @@ static void drawTitleScreen(void){
 
     /* Weather selector */
     drawWeatherSelector();
+    drawDifficultySelector();
 
     /* Start prompt */
     float pulse=0.65f+0.35f*sinf(g_frame*0.09f);
@@ -1460,6 +1847,35 @@ static void drawPlayAgainButton(float px,float py){
  *  DRAW: GAME OVER SCREEN
  * ================================================================ */
 
+static void drawMedal(int score, float cx, float cy) {
+    if (score < 5) return;
+    
+    col(200, 40, 40); // red ribbons
+    fillRect(cx - 15.f, cy - 35.f, 10.f, 35.f);
+    fillRect(cx + 5.f, cy - 35.f, 10.f, 35.f);
+    
+    if (score >= 30) {
+        col4(255, 255, 200, 150);
+        fillCircle(cx, cy, 32.f, 16);
+    }
+    
+    if (score >= 50) col(200, 150, 255); // Platinum
+    else if (score >= 30) col(255, 215, 0); // Gold
+    else if (score >= 15) col(192, 192, 192); // Silver
+    else col(205, 127, 50); // Bronze
+    
+    fillCircle(cx, cy, 22.f, 16);
+    col(255, 255, 255);
+    glLineWidth(3.f);
+    glBegin(GL_LINE_LOOP);
+    for (int i=0; i<16; i++) {
+        float a = PI2 * i / 16.f;
+        glVertex2f(cx + cosf(a)*22.f, cy + sinf(a)*22.f);
+    }
+    glEnd();
+    glLineWidth(2.f);
+}
+
 static void drawGameOverScreen(void){
     /* Dark overlay */
     col4(0,0,0,110); fillRect(0,0,WORLD_W,WORLD_H);
@@ -1479,9 +1895,11 @@ static void drawGameOverScreen(void){
     /* Scores */
     char buf[32];
     sprintf(buf,"Score: %d",g_score); col(60,40,10);
-    bitmapText(WORLD_W/2.f-58.f,py+96.f,GLUT_BITMAP_HELVETICA_18,buf);
+    bitmapText(WORLD_W/2.f-38.f,py+96.f,GLUT_BITMAP_HELVETICA_18,buf);
     sprintf(buf,"Best:  %d",g_highScore);
-    bitmapText(WORLD_W/2.f-58.f,py+72.f,GLUT_BITMAP_HELVETICA_18,buf);
+    bitmapText(WORLD_W/2.f-38.f,py+72.f,GLUT_BITMAP_HELVETICA_18,buf);
+
+    drawMedal(g_score, WORLD_W/2.f - 100.f, py + 90.f);
 
     /* Play Again button area */
     drawPlayAgainButton(px,py);
@@ -1574,32 +1992,35 @@ static void display(void){
 
     drawBackground();
     if(g_weather==WEATHER_SUNNY||g_weather==WEATHER_DAY) drawSun();
-    if(g_weather==WEATHER_NIGHT){ drawStars(); drawMoon(); }
+    if(g_weather==WEATHER_NIGHT){ drawShootingStars(); drawStars(); drawMoon(); }
+    drawMountains();
     drawClouds();
+    if(g_weather==WEATHER_SUNNY) drawRainbow();
     drawCitySilhouette();
 
     switch(g_state){
         case STATE_TITLE:
-            drawGround();
+            drawGround(); drawTrees();
             drawTitleScreen();
             break;
         case STATE_PLAYING:
             /* drawBirdReflection() — Reflection Transform — must come AFTER
                drawGround() so it renders inside the ground strip, then
                drawBird() renders the real bird on top. */
-            drawPipes(); drawGround(); drawBirdReflection(); drawBird(); drawHUD();
+            drawPipes(); drawGround(); drawTrees(); drawBirdReflection(); drawBird(); drawHUD();
             break;
         case STATE_PAUSED:
-            drawPipes(); drawGround(); drawBirdReflection(); drawBird(); drawHUD();
+            drawPipes(); drawGround(); drawTrees(); drawBirdReflection(); drawBird(); drawHUD();
             drawPauseScreen();
             break;
         case STATE_GAMEOVER:
-            drawPipes(); drawGround(); drawBirdReflection(); drawBird(); drawHUD();
+            drawPipes(); drawGround(); drawTrees(); drawBirdReflection(); drawBird(); drawHUD();
             drawGameOverScreen();
             break;
     }
 
     if(g_weather==WEATHER_RAIN){ drawFog(); drawRain(); drawLightning(); }
+    if(g_weather==WEATHER_SNOW){ drawFog(); drawSnow(); }
     drawParticles();      /* GL_POINTS — score sparkle burst */
     drawWeatherName();
 
@@ -1631,8 +2052,8 @@ static int checkCollision(void){
     if(by+br>=WORLD_H)return 1;
     for(int i=0;i<PIPE_COUNT;i++){
         float px=g_pipes[i].x;
-        float gT=g_pipes[i].gapCenterY+PIPE_GAP/2.f;
-        float gB=g_pipes[i].gapCenterY-PIPE_GAP/2.f;
+        float gT=g_pipes[i].gapCenterY+g_pipeGap/2.f;
+        float gB=g_pipes[i].gapCenterY-g_pipeGap/2.f;
         if(bx+br>px-7.f && bx-br<px+PIPE_W+7.f){
             if(by-br<gB) return 1;
             if(by+br>gT) return 1;
@@ -1703,8 +2124,8 @@ static void updateBird(void){
 }
 
 static void updatePipes(void){
-    float minC=GROUND_Y+GROUND_H*GRASS_H_RATIO+PIPE_MIN_H+PIPE_GAP/2.f;
-    float maxC=WORLD_H-PIPE_MIN_H-PIPE_GAP/2.f;
+    float minC=GROUND_Y+GROUND_H*GRASS_H_RATIO+PIPE_MIN_H+g_pipeGap/2.f;
+    float maxC=WORLD_H-PIPE_MIN_H-g_pipeGap/2.f;
     for(int i=0;i<PIPE_COUNT;i++){
         g_pipes[i].x-=g_pipeSpeed;
         if(g_pipes[i].x+PIPE_W<-20.f){
@@ -1718,7 +2139,10 @@ static void updatePipes(void){
         if(!g_pipes[i].scored&&g_pipes[i].x+PIPE_W/2.f<BIRD_X){
             g_pipes[i].scored=1;
             g_score++;
-            if(g_score>g_highScore) g_highScore=g_score;
+            if(g_score>g_highScore) {
+                g_highScore=g_score;
+                saveHighScore();
+            }
             playSound(SFX_SCORE);
             triggerParticles(BIRD_X, g_bird.y); /* score sparkle (GL_POINTS) */
         }
@@ -1762,6 +2186,8 @@ static void updateGame(void){
     if(g_state==STATE_TITLE){
         updateClouds();
         if(g_weather==WEATHER_RAIN) updateRainDrops();
+        if(g_weather==WEATHER_SNOW) updateSnow();
+        if(g_weather==WEATHER_NIGHT) updateShootingStars();
         g_titleBobT+=0.05f;
         g_titleBobY=8.f*sinf(g_titleBobT);
         if(++g_bird.wingTimer>=WING_ANIM_RATE){
@@ -1776,8 +2202,11 @@ static void updateGame(void){
         if(g_flashTicks>0) g_flashTicks--;
         if(g_gameOverDelay>0) g_gameOverDelay--;
         if(g_weather==WEATHER_RAIN) updateRainDrops();
+        if(g_weather==WEATHER_SNOW) updateSnow();
+        if(g_weather==WEATHER_NIGHT) updateShootingStars();
         updateClouds();
         updateShake();
+        g_shearX += (0.4f - g_shearX) * 0.04f; /* shear animation */
         return;
     }
 
@@ -1787,6 +2216,8 @@ static void updateGame(void){
     updateParticles();     /* advance score-sparkle particles */
     updateClouds();
     if(g_weather==WEATHER_RAIN) updateRainDrops();
+    if(g_weather==WEATHER_SNOW) updateSnow();
+    if(g_weather==WEATHER_NIGHT) updateShootingStars();
     g_groundScroll+=g_pipeSpeed;
 
     if(checkCollision()){
@@ -1839,6 +2270,18 @@ static void doFlap(void){
  *  HOVER CHECK HELPER
  *  Returns which weather button (0-3) the mouse is over, or -1.
  * ================================================================ */
+
+static int hoveredDiffButton(void) {
+    float startX = WORLD_W/2.f - 170.f;
+    float y = 180.f;
+    float w = 110.f;
+    float h = 40.f;
+    for (int i=0; i<3; i++) {
+        float bx = startX + i*(w + 10.f);
+        if (isInRect(g_mouseX, g_mouseY, bx, y, w, h)) return i;
+    }
+    return -1;
+}
 
 static int hoveredWeatherButton(void){
     for(int i=0;i<WEATHER_COUNT;i++){
@@ -1917,8 +2360,16 @@ static void mouseInput(int button,int state,int x,int y){
             playSound(SFX_CLICK);
             return;
         }
-        /* Clicking elsewhere on title starts the game */
-        if(g_state==STATE_TITLE){ doFlap(); return; }
+        if (g_state==STATE_TITLE) {
+            int hd = hoveredDiffButton();
+            if (hd >= 0) {
+                g_difficulty = (Difficulty)hd;
+                playSound(SFX_CLICK);
+                return;
+            }
+            /* Clicking elsewhere on title starts the game */
+            doFlap(); return;
+        }
     }
 
     if(g_state==STATE_GAMEOVER && g_gameOverDelay<=0){
@@ -1947,8 +2398,16 @@ static void passiveMotion(int x,int y){
         g_hoveredWeather=hoveredWeatherButton();
         if(g_hoveredWeather!=prev && g_hoveredWeather>=0)
             playSound(SFX_HOVER);
+            
+        if (g_state==STATE_TITLE) {
+            int prevD = g_hoveredDiff;
+            g_hoveredDiff = hoveredDiffButton();
+            if (g_hoveredDiff != prevD && g_hoveredDiff >= 0)
+                playSound(SFX_HOVER);
+        }
     } else {
         g_hoveredWeather=-1;
+        g_hoveredDiff=-1;
     }
 
     /* Play Again button hover */
