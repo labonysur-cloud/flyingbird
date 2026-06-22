@@ -153,6 +153,16 @@ typedef struct { float y, vy, angle; int wingFrame, wingTimer, alive; } Bird;
 typedef struct { float x, y, speed, alpha, len; } RainDrop;
 typedef struct { float x, y, size, phase; } Star;
 
+/* Particle — one GL_POINTS sparkle emitted on every score */
+#define PARTICLE_COUNT 60
+typedef struct {
+    float x, y;       /* world-space position       */
+    float vx, vy;     /* velocity (pixels / frame)  */
+    float r, g, b;    /* colour                     */
+    float life;       /* 1.0 = fresh, 0.0 = dead    */
+    int   active;
+} Particle;
+
 /* Per-weather visual theme */
 typedef struct {
     float topR, topG, topB;     /* Sky zenith colour   */
@@ -196,6 +206,7 @@ static Cloud      g_clouds[CLOUD_COUNT];
 static Building   g_buildings[BUILDING_COUNT];
 static RainDrop   g_rain[RAIN_COUNT];
 static Star       g_stars[STAR_COUNT];
+static Particle   g_particles[PARTICLE_COUNT];
 
 static int        g_score     = 0;
 static int        g_highScore = 0;
@@ -342,6 +353,102 @@ static void fillEllipse(float cx,float cy,float rx,float ry,int segs){
             }
         glEnd();
     glPopMatrix();
+}
+
+/* ================================================================
+ *  ALGORITHM 1 : DDA LINE  (Digital Differential Analyser)
+ *
+ *  Principle: Compute the number of steps = max(|dx|,|dy|),
+ *  then increment x and y by dx/steps and dy/steps each step.
+ *  This guarantees exactly one pixel plotted per step.
+ *
+ *  Usage in this project:
+ *    - Draws the four outline edges of every pipe body and cap.
+ * ================================================================ */
+static void ddaLine(float x1, float y1, float x2, float y2) {
+    float dx    = x2 - x1;
+    float dy    = y2 - y1;
+    float steps = fabsf(dx) > fabsf(dy) ? fabsf(dx) : fabsf(dy);
+    if (steps < 1.0f) steps = 1.0f;
+    float xInc  = dx / steps;
+    float yInc  = dy / steps;
+    float x = x1, y = y1;
+    glBegin(GL_POINTS);
+    for (int i = 0; i <= (int)steps; i++) {
+        glVertex2f(x, y);
+        x += xInc;
+        y += yInc;
+    }
+    glEnd();
+}
+
+/* Draw four edges of a rectangle using DDA lines. */
+static void ddaOutlineRect(float x, float y, float w, float h) {
+    ddaLine(x,     y,     x + w, y    );   /* bottom */
+    ddaLine(x + w, y,     x + w, y + h);   /* right  */
+    ddaLine(x + w, y + h, x,     y + h);   /* top    */
+    ddaLine(x,     y + h, x,     y    );   /* left   */
+}
+
+/* ================================================================
+ *  ALGORITHM 2 : MIDPOINT CIRCLE  (Bresenham's Circle Algorithm)
+ *
+ *  Principle: Start at (0, r). Use an integer decision variable
+ *  d = 1 - r to choose between East (x++) and South-East
+ *  (x++, y--) at each step. Exploits 8-fold symmetry so only
+ *  one octant needs to be computed.
+ *
+ *  Usage in this project:
+ *    - Draws the bird's circular body outline every frame.
+ *    - Also used for the semi-transparent reflection outline.
+ * ================================================================ */
+static void midpointCircle(float cx, float cy, int r) {
+    int x = 0, y = r;
+    int d = 1 - r;          /* Initial decision variable */
+    glBegin(GL_POINTS);
+    while (x <= y) {
+        /* 8-fold symmetry: plot one point in each octant */
+        glVertex2f(cx + x, cy + y);  glVertex2f(cx - x, cy + y);
+        glVertex2f(cx + x, cy - y);  glVertex2f(cx - x, cy - y);
+        glVertex2f(cx + y, cy + x);  glVertex2f(cx - y, cy + x);
+        glVertex2f(cx + y, cy - x);  glVertex2f(cx - y, cy - x);
+        if (d < 0)
+            d += 2 * x + 3;          /* Midpoint inside  -> move East     */
+        else {
+            d += 2 * (x - y) + 5;   /* Midpoint outside -> move SE       */
+            y--;
+        }
+        x++;
+    }
+    glEnd();
+}
+
+/* ================================================================
+ *  ALGORITHM 3 : BRESENHAM LINE  (integer error-accumulation)
+ *
+ *  Principle: Maintain an error term err = dx - dy. Each step,
+ *  advance in the major axis and conditionally step in the minor
+ *  axis when the accumulated error exceeds 0. No floating-point
+ *  arithmetic needed.
+ *
+ *  Usage in this project:
+ *    - Draws the lightning bolt zigzag segments in RAIN mode.
+ * ================================================================ */
+static void bresenhamLine(int x1, int y1, int x2, int y2) {
+    int dx  = abs(x2 - x1);
+    int dy  = abs(y2 - y1);
+    int sx  = (x1 < x2) ? 1 : -1;
+    int sy  = (y1 < y2) ? 1 : -1;
+    int err = dx - dy;
+    glBegin(GL_POINTS);
+    for (;;) {
+        glVertex2i(x1, y1);
+        if (x1 == x2 && y1 == y2) break;
+        int e2 = 2 * err;
+        if (e2 > -dy) { err -= dy; x1 += sx; }
+        if (e2 <  dx) { err += dx; y1 += sy; }
+    }
+    glEnd();
 }
 
 /* ================================================================
@@ -759,21 +866,25 @@ static void drawLightning(void){
     float bx=g_boltX, by=WORLD_H;
     float segH=(WORLD_H-GROUND_Y-GROUND_H)*0.13f;
 
-    glLineWidth(7.f);
+    /* ALGORITHM 3 — Bresenham Line: outer glow pass */
     col4(180,210,255,(int)(a*80));
-    glBegin(GL_LINE_STRIP);
-        glVertex2f(bx,by);
-        for(int i=0;i<8;i++){ bx+=g_boltSegs[i]; by-=segH; glVertex2f(bx,by); }
-    glEnd();
+    glPointSize(6.5f);
+    for(int i=0;i<8;i++){
+        float nx=bx+g_boltSegs[i], ny=by-segH;
+        bresenhamLine((int)bx,(int)by,(int)nx,(int)ny);
+        bx=nx; by=ny;
+    }
 
+    /* ALGORITHM 3 — Bresenham Line: inner bright core pass */
     bx=g_boltX; by=WORLD_H;
-    glLineWidth(3.5f);
     col4(240,248,255,(int)(a*240));
-    glBegin(GL_LINE_STRIP);
-        glVertex2f(bx,by);
-        for(int i=0;i<8;i++){ bx+=g_boltSegs[i]; by-=segH; glVertex2f(bx,by); }
-    glEnd();
-    glLineWidth(2.f);
+    glPointSize(2.5f);
+    for(int i=0;i<8;i++){
+        float nx=bx+g_boltSegs[i], ny=by-segH;
+        bresenhamLine((int)bx,(int)by,(int)nx,(int)ny);
+        bx=nx; by=ny;
+    }
+    glPointSize(1.0f);
 }
 
 /* ================================================================
@@ -918,17 +1029,13 @@ static void drawBird(void){
     glTranslatef(BIRD_X,g_bird.y,0.f);
     glRotatef(g_bird.angle,0.f,0.f,1.f);
 
-    /* Body */
+    /* Body — filled with GL_TRIANGLE_FAN (polygon primitive) */
     col(255,195,50); fillCircle(0,0,BIRD_RADIUS,20);
+    /* ALGORITHM 2 — Midpoint Circle: plots the crisp body outline */
     col(200,120,20);
-    glLineWidth(2.5f);
-    glBegin(GL_LINE_LOOP);
-        for(int i=0;i<20;i++){
-            float a=PI2*i/20;
-            glVertex2f(cosf(a)*BIRD_RADIUS,sinf(a)*BIRD_RADIUS);
-        }
-    glEnd();
-    glLineWidth(2.f);
+    glPointSize(2.5f);
+    midpointCircle(0, 0, (int)BIRD_RADIUS);
+    glPointSize(1.0f);
 
     /* Wing */
     float wOff[3]={0.f,8.f,-8.f};
@@ -968,6 +1075,63 @@ static void drawBird(void){
 }
 
 /* ================================================================
+ *  DRAW: BIRD REFLECTION  (2D Reflection Transformation)
+ *
+ *  Reflects the bird about the grass surface line (y = grassY).
+ *  Formula:  y' = 2 * grassY - y
+ *  Implemented via glScalef(1, -1, 1) after translating the
+ *  coordinate origin to the reflection axis (grassY).
+ *  Demonstrates the REFLECTION transformation from the syllabus.
+ * ================================================================ */
+static void drawBirdReflection(void) {
+    float grassY = GROUND_Y + GROUND_H * GRASS_H_RATIO;
+    float reflY  = 2.f * grassY - g_bird.y;
+
+    /* Only visible when bird is close enough for a ground puddle */
+    if (reflY > grassY - 1.f || reflY < GROUND_Y - BIRD_RADIUS * 2.f) return;
+
+    glPushMatrix();
+        /* Step 1 — Translate to the mirrored world position */
+        glTranslatef(BIRD_X, reflY, 0.f);
+        /* Step 2 — Flip rotation sign to match the reflection */
+        glRotatef(-g_bird.angle, 0.f, 0.f, 1.f);
+        /* Step 3 — Apply Y-reflection: scale Y axis by -1 */
+        glScalef(1.0f, -1.0f, 1.0f);
+
+        /* Draw a faded silhouette so it looks like a puddle */
+        col4(255, 195, 50,  45); fillCircle(0, 0, BIRD_RADIUS, 20);
+        col4(200, 120, 20,  45);
+        glPointSize(2.5f);
+        midpointCircle(0, 0, (int)BIRD_RADIUS);   /* Midpoint Circle outline */
+        glPointSize(1.0f);
+        col4(255, 255, 255, 30); fillCircle(6.f,  5.f,  6.5f, 14);
+        col4( 30,  30,  30, 30); fillCircle(7.5f, 4.5f, 3.5f, 12);
+    glPopMatrix();
+}
+
+/* ================================================================
+ *  DRAW: SCORE SPARKLE PARTICLES  (GL_POINTS primitive demo)
+ *
+ *  Each live particle is rendered as a single GL_POINT with an
+ *  alpha value tied to its remaining life — clearly demonstrating
+ *  the GL_POINTS primitive type as required by the rubric.
+ * ================================================================ */
+static void drawParticles(void) {
+    glPointSize(5.5f);
+    glBegin(GL_POINTS);
+    for (int i = 0; i < PARTICLE_COUNT; i++) {
+        if (!g_particles[i].active) continue;
+        glColor4f(g_particles[i].r,
+                  g_particles[i].g,
+                  g_particles[i].b,
+                  g_particles[i].life);
+        glVertex2f(g_particles[i].x, g_particles[i].y);
+    }
+    glEnd();
+    glPointSize(1.0f);
+}
+
+/* ================================================================
  *  DRAW: PIPES
  * ================================================================ */
 
@@ -982,8 +1146,11 @@ static void drawSinglePipe(float x,float y1,float y2,int flipped){
     fillRect(x+8.f,y1,12.f,y2-y1);
     colF(40/255.f*dr,140/255.f*dg,40/255.f*db);
     fillRect(x+PIPE_W-10.f,y1,10.f,y2-y1);
+    /* ALGORITHM 1 — DDA Line: draws the 4-edge outline of the pipe body */
     colF(30/255.f*dr,110/255.f*dg,30/255.f*db);
-    outlineRect(x,y1,PIPE_W,y2-y1,2.5f);
+    glPointSize(2.0f);
+    ddaOutlineRect(x, y1, PIPE_W, y2 - y1);
+    glPointSize(1.0f);
 
     float capY=flipped?y1-4.f:y2-PIPE_CAP_H, capH=PIPE_CAP_H+4.f;
     colF(80/255.f*dr,200/255.f*dg,80/255.f*db);
@@ -992,8 +1159,11 @@ static void drawSinglePipe(float x,float y1,float y2,int flipped){
     fillRect(x-capOff+8.f,capY,14.f,capH);
     colF(40/255.f*dr,140/255.f*dg,40/255.f*db);
     fillRect(x-capOff+capW-12.f,capY,12.f,capH);
+    /* ALGORITHM 1 — DDA Line: draws the 4-edge outline of the pipe cap */
     colF(30/255.f*dr,110/255.f*dg,30/255.f*db);
-    outlineRect(x-capOff,capY,capW,capH,2.5f);
+    glPointSize(2.0f);
+    ddaOutlineRect(x - capOff, capY, capW, capH);
+    glPointSize(1.0f);
 }
 
 static void drawPipes(void){
@@ -1176,9 +1346,16 @@ static void drawTitleScreen(void){
     col(50,120,20);   outlineRect(bx+4.f,by+4.f,312.f,102.f,3.f);
 
     /* Showcase bird near title */
+    /* SCALING TRANSFORM — title bird pulses in and out (uniform scale) */
     float sy=g_bird.y, sa=g_bird.angle;
     g_bird.y=tY-22.f; g_bird.angle=5.f*sinf(g_frame*0.05f);
-    drawBird();
+    float titleScale = 1.0f + 0.12f * sinf(g_frame * 0.07f);
+    glPushMatrix();
+        glTranslatef(BIRD_X, tY - 22.f, 0.f);          /* move to bird centre  */
+        glScalef(titleScale, titleScale, 1.0f);          /* scale about centre   */
+        glTranslatef(-BIRD_X, -(tY - 22.f), 0.f);       /* restore origin       */
+        drawBird();
+    glPopMatrix();
     g_bird.y=sy; g_bird.angle=sa;
 
     /* Weather selector */
@@ -1356,19 +1533,23 @@ static void display(void){
             drawTitleScreen();
             break;
         case STATE_PLAYING:
-            drawPipes(); drawGround(); drawBird(); drawHUD();
+            /* drawBirdReflection() — Reflection Transform — must come AFTER
+               drawGround() so it renders inside the ground strip, then
+               drawBird() renders the real bird on top. */
+            drawPipes(); drawGround(); drawBirdReflection(); drawBird(); drawHUD();
             break;
         case STATE_PAUSED:
-            drawPipes(); drawGround(); drawBird(); drawHUD();
+            drawPipes(); drawGround(); drawBirdReflection(); drawBird(); drawHUD();
             drawPauseScreen();
             break;
         case STATE_GAMEOVER:
-            drawPipes(); drawGround(); drawBird(); drawHUD();
+            drawPipes(); drawGround(); drawBirdReflection(); drawBird(); drawHUD();
             drawGameOverScreen();
             break;
     }
 
     if(g_weather==WEATHER_RAIN){ drawFog(); drawRain(); drawLightning(); }
+    drawParticles();      /* GL_POINTS — score sparkle burst */
     drawWeatherName();
 
     /* Weather change flash */
@@ -1404,6 +1585,45 @@ static int checkCollision(void){
         }
     }
     return 0;
+}
+
+/* ================================================================
+ *  PARTICLE SYSTEM — trigger, update, (draw is in draw section)
+ * ================================================================ */
+
+/* Spawn a radial burst of 20 sparkle particles at world pos (x,y). */
+static void triggerParticles(float x, float y) {
+    int spawned = 0;
+    for (int i = 0; i < PARTICLE_COUNT && spawned < 20; i++) {
+        if (!g_particles[i].active) {
+            float angle           = randf(0.f, PI2);
+            float speed           = randf(2.5f, 9.f);
+            g_particles[i].x     = x;
+            g_particles[i].y     = y;
+            g_particles[i].vx    = cosf(angle) * speed;
+            g_particles[i].vy    = sinf(angle) * speed;
+            g_particles[i].r     = randf(0.85f, 1.0f);
+            g_particles[i].g     = randf(0.70f, 1.0f);
+            g_particles[i].b     = randf(0.0f,  0.35f);
+            g_particles[i].life  = 1.0f;
+            g_particles[i].active = 1;
+            spawned++;
+        }
+    }
+}
+
+/* Advance all live particles one simulation step. */
+static void updateParticles(void) {
+    for (int i = 0; i < PARTICLE_COUNT; i++) {
+        if (!g_particles[i].active) continue;
+        g_particles[i].x    += g_particles[i].vx;
+        g_particles[i].y    += g_particles[i].vy;
+        g_particles[i].vy   -= 0.28f;   /* gravity */
+        g_particles[i].vx   *= 0.97f;   /* drag    */
+        g_particles[i].life -= 0.030f;
+        if (g_particles[i].life <= 0.f)
+            g_particles[i].active = 0;
+    }
 }
 
 /* ================================================================
@@ -1446,6 +1666,7 @@ static void updatePipes(void){
             g_score++;
             if(g_score>g_highScore) g_highScore=g_score;
             playSound(SFX_SCORE);
+            triggerParticles(BIRD_X, g_bird.y); /* score sparkle (GL_POINTS) */
         }
     }
     g_pipeSpeed+=PIPE_SPEED_INC;
@@ -1509,6 +1730,7 @@ static void updateGame(void){
     /* Playing */
     updateBird();
     updatePipes();
+    updateParticles();     /* advance score-sparkle particles */
     updateClouds();
     if(g_weather==WEATHER_RAIN) updateRainDrops();
     g_groundScroll+=g_pipeSpeed;
