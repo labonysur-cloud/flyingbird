@@ -26,9 +26,9 @@
 /* Bird */
 #define BIRD_X           160.0f
 #define BIRD_RADIUS      18.0f
-#define GRAVITY         -0.45f
-#define FLAP_VEL         10.0f
-#define MAX_FALL_VEL    -13.0f
+#define GRAVITY         -0.52f   /* slightly stronger pull = tighter arc   */
+#define FLAP_VEL         7.5f    /* less aggressive jump = smoother control */
+#define MAX_FALL_VEL    -11.0f   /* proportional to new gravity             */
 #define TILT_UP_DEG      25.0f
 #define TILT_DOWN_DEG   -55.0f
 
