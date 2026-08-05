@@ -262,6 +262,33 @@ static int         g_winH = WIN_H;
 static unsigned char g_sfxBuf[SFX_COUNT][SFX_BUF];
 static int           g_sfxSize[SFX_COUNT];
 
+/* Sound priority system
+ * Prevents low-priority sounds (flap, hover) from interrupting
+ * a coin/score/die sound that is still within its expected duration.
+ * Higher number = higher priority. Equal priority CAN interrupt.
+ */
+static const int g_sfxPriority[SFX_COUNT] = {
+    1, /* SFX_FLAP    — low     */
+    3, /* SFX_SCORE   — medium  */
+    5, /* SFX_DIE     — highest */
+    3, /* SFX_CLICK   — medium  */
+    0, /* SFX_HOVER   — minimal */
+    3, /* SFX_WEATHER — medium  */
+    4, /* SFX_COIN    — high    */
+};
+/* Approximate playback length in frames at 60 FPS */
+static const int g_sfxDurFrames[SFX_COUNT] = {
+     6, /* SFX_FLAP    ~0.10 s */
+    21, /* SFX_SCORE   ~0.35 s */
+    46, /* SFX_DIE     ~0.76 s */
+     3, /* SFX_CLICK   ~0.04 s */
+     2, /* SFX_HOVER   ~0.03 s */
+    28, /* SFX_WEATHER ~0.46 s */
+    16, /* SFX_COIN    ~0.26 s */
+};
+static int g_activeSfxId    = -1; /* ID of currently playing sound   */
+static int g_activeSfxTicks =  0; /* Frames left in current playback */
+
 /* ================================================================
  *  UTILITY
  * ================================================================ */
@@ -692,45 +719,81 @@ static void buildWav(int id,
 
 static void playSound(int id) {
     if (id < 0 || id >= SFX_COUNT || g_sfxSize[id] == 0) return;
+    /* Priority gate: a lower-priority sound must not cut off a
+       higher-priority one that is still within its expected duration. */
+    if (g_activeSfxTicks > 0 && g_activeSfxId >= 0) {
+        if (g_sfxPriority[id] < g_sfxPriority[g_activeSfxId]) return;
+    }
     PlaySound((LPCSTR)g_sfxBuf[id], NULL,
               SND_MEMORY | SND_ASYNC | SND_NODEFAULT);
+    g_activeSfxId    = id;
+    g_activeSfxTicks = g_sfxDurFrames[id];
 }
 
 static void initSounds(void) {
-    /* --- Flap: Cute audible chirp --- */
-    { float f[] = {600.f, 900.f};
-      float d[] = {0.05f, 0.05f};
-      buildWav(SFX_FLAP, f, d, 2, 0.40f, 0); }
 
-    /* --- Score: happy ascending C-E-G --- */
-    { float f[] = {523.f, 659.f, 784.f, 784.f};
-      float d[] = {0.07f, 0.07f, 0.14f, 0.01f};
-      buildWav(SFX_SCORE, f, d, 4, 0.45f, 0); }
+    /* ----------------------------------------------------------------
+     * SFX_FLAP — Light, airy wing beat
+     * A quick rising chirp (G4→D5) that snaps back slightly (→A4).
+     * Pure sine keeps it clean; happens every flap so must not tire.
+     * ---------------------------------------------------------------- */
+    { float f[] = {392.f, 587.f, 880.f, 660.f};
+      float d[] = {0.020f, 0.020f, 0.020f, 0.040f};
+      buildWav(SFX_FLAP, f, d, 4, 0.38f, 0); }
 
-    /* --- Die: sad descending melody --- */
-    { float f[] = {440.f, 370.f, 294.f, 220.f, 165.f};
-      float d[] = {0.09f, 0.10f, 0.11f, 0.13f, 0.22f};
-      buildWav(SFX_DIE, f, d, 5, 0.50f, 1); }
+    /* ----------------------------------------------------------------
+     * SFX_SCORE — Triumphant 5-note fanfare  C5→E5→G5→C6→E6
+     * Bright, punchy, joyful — reward every pipe cleared.
+     * Each note gets a clean attack; final note rings out.
+     * ---------------------------------------------------------------- */
+    { float f[] = {523.f, 659.f, 784.f, 1047.f, 1319.f};
+      float d[] = {0.055f, 0.055f, 0.055f, 0.070f, 0.120f};
+      buildWav(SFX_SCORE, f, d, 5, 0.52f, 0); }
 
-    /* --- Click: sharp button press --- */
-    { float f[] = {700.f, 350.f};
-      float d[] = {0.025f, 0.035f};
-      buildWav(SFX_CLICK, f, d, 2, 0.30f, 0); }
+    /* ----------------------------------------------------------------
+     * SFX_DIE — Dramatic descending wail  G4→F4→Eb4→D4→C4→Bb3→G3
+     * 7-note downward spiral with rich harmonics = classic game-over.
+     * Slow enough to feel heavy and final.
+     * ---------------------------------------------------------------- */
+    { float f[] = {392.f, 349.f, 311.f, 294.f, 261.f, 233.f, 196.f};
+      float d[] = {0.09f,  0.09f,  0.10f, 0.11f, 0.11f, 0.12f, 0.19f};
+      buildWav(SFX_DIE, f, d, 7, 0.55f, 1); }
 
-    /* --- Hover: soft tick --- */
-    { float f[] = {900.f, 700.f};
-      float d[] = {0.018f, 0.018f};
-      buildWav(SFX_HOVER, f, d, 2, 0.12f, 0); }
+    /* ----------------------------------------------------------------
+     * SFX_CLICK — Crisp satisfying UI pop
+     * High-freq attack that snaps to a lower tone: feels decisive.
+     * Very short so it never overlaps with the next action.
+     * ---------------------------------------------------------------- */
+    { float f[] = {1400.f, 800.f, 400.f};
+      float d[] = {0.010f, 0.015f, 0.018f};
+      buildWav(SFX_CLICK, f, d, 3, 0.42f, 0); }
 
-    /* --- Weather change: rising arpeggio --- */
-    { float f[] = {262.f, 330.f, 392.f, 523.f};
-      float d[] = {0.07f, 0.07f, 0.07f, 0.18f};
-      buildWav(SFX_WEATHER, f, d, 4, 0.42f, 0); }
+    /* ----------------------------------------------------------------
+     * SFX_HOVER — Whisper-soft mouse-over tick
+     * Barely audible high-to-mid tone — confirms hover without
+     * distracting from gameplay.  Very low volume is intentional.
+     * ---------------------------------------------------------------- */
+    { float f[] = {1200.f, 900.f};
+      float d[] = {0.012f, 0.018f};
+      buildWav(SFX_HOVER, f, d, 2, 0.16f, 0); }
 
-    /* Coin collect: Beautiful bright arcade chime */
-    { float f[] = {987.77f, 1318.51f};
-      float d[] = {0.1f, 0.2f};
-      buildWav(SFX_COIN, f, d, 2, 0.45f, 0); }
+    /* ----------------------------------------------------------------
+     * SFX_WEATHER — Magical 5-note pentatonic sweep  C4→E4→G4→C5→E5
+     * Harmonics give it a warm, bell-like shimmer that suits the
+     * atmospheric weather transition perfectly.
+     * ---------------------------------------------------------------- */
+    { float f[] = {262.f, 330.f, 392.f, 523.f, 659.f};
+      float d[] = {0.065f, 0.065f, 0.075f, 0.085f, 0.175f};
+      buildWav(SFX_WEATHER, f, d, 5, 0.48f, 1); }
+
+    /* ----------------------------------------------------------------
+     * SFX_COIN — Classic 4-note ascending arcade chime  C6→E6→G6→C7
+     * Harmonics ON for a rich, bell-like timbre.
+     * Priority 4 (see g_sfxPriority) keeps it safe from interruption.
+     * ---------------------------------------------------------------- */
+    { float f[] = {1047.0f, 1319.0f, 1568.0f, 2093.0f};
+      float d[] = {0.045f,  0.045f,  0.045f,  0.125f};
+      buildWav(SFX_COIN, f, d, 4, 0.68f, 1); }
 }
 
 /* ================================================================
@@ -2502,6 +2565,8 @@ static void updateRainDrops(void) {
 
 static void updateGame(void) {
     g_frame++;
+    /* Tick down the active-sound protection window each frame */
+    if (g_activeSfxTicks > 0) g_activeSfxTicks--;
     updateWeather();
 
     if (g_state == STATE_TITLE) {
