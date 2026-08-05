@@ -727,8 +727,8 @@ Copy the extracted files into your MinGW installation (`C:\Program Files\CodeBlo
 ### Step 3 — Clone and Build
 
 ```bash
-git clone https://github.com/labonysur-cloud/flappybird.git
-cd flappybird
+git clone https://github.com/labonysur-cloud/flyingbird.git
+cd flyingbird
 ```
 
 **Option A — Code::Blocks (Recommended)**
@@ -768,7 +768,7 @@ flying_bird.exe
 ## 🗂️ Project Files
 
 ```
-flappybird/
+flyingbird/
 ├── flying_bird.cpp     Complete game source (~2800 lines, C++17, single file)
 ├── flying_bird.c       Original C99 source (kept for reference)
 ├── FlyingBird.cbp      Code::Blocks project file (g++ / c++17, linker flags pre-set)
