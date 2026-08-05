@@ -290,7 +290,7 @@ static const int g_sfxDurFrames[SFX_COUNT] = {
     28, /* SFX_WEATHER ~0.46 s */
     16, /* SFX_COIN    ~0.26 s */
      0, /* SFX_RAIN    — waveOut loop, no PlaySound duration */
-    50, /* SFX_THUNDER ~0.82 s */
+    80, /* SFX_THUNDER ~1.32 s */
 };
 static int g_activeSfxId    = -1; /* ID of currently playing sound   */
 static int g_activeSfxTicks =  0; /* Frames left in current playback */
@@ -747,9 +747,12 @@ static void playSound(int id) {
 
 /* ================================================================
  *  RAIN AMBIENT GENERATOR
- *  Builds 1.3 s of low-pass-filtered white noise — the classic
- *  "steady rainfall" hiss. Fade-in / fade-out at loop boundaries
- *  prevent the audible click when waveOut loops back to the start.
+ *
+ *  Generates 1.3 s of layered noise that sounds like real rain:
+ *    - High-freq sparkle  (individual drop "patter")
+ *    - Mid-freq hiss      (main rain body, 2-pole LP filtered)
+ *    - Subtle low whoosh  (wind-driven ambient layer)
+ *  70 ms fade-in / fade-out at loop points for seamless looping.
  * ================================================================ */
 static void buildRainWav(void) {
     int totalSamp = (int)(1.3f * SFX_RATE);
@@ -760,45 +763,70 @@ static void buildRainWav(void) {
     memcpy(p,    "RIFF", 4); memcpy(p + 4,  &riffSz, 4);
     memcpy(p + 8, "WAVE", 4);
     memcpy(p + 12, "fmt ", 4);
-    int   fmtSz = 16;            memcpy(p + 16, &fmtSz, 4);
-    short one   = 1;             memcpy(p + 20, &one,   2);
-                                 memcpy(p + 22, &one,   2);
-    int   sr    = SFX_RATE;      memcpy(p + 24, &sr,    4);
-    int   br    = SFX_RATE * 2;  memcpy(p + 28, &br,    4);
-    short ba    = 2;             memcpy(p + 32, &ba,    2);
-    short bps   = 16;            memcpy(p + 34, &bps,   2);
-    memcpy(p + 36, "data", 4);   memcpy(p + 40, &dataBytes, 4);
+    int   fmtSz = 16;           memcpy(p + 16, &fmtSz, 4);
+    short one   = 1;            memcpy(p + 20, &one,   2);
+                                memcpy(p + 22, &one,   2);
+    int   sr    = SFX_RATE;     memcpy(p + 24, &sr,    4);
+    int   br    = SFX_RATE * 2; memcpy(p + 28, &br,    4);
+    short ba    = 2;            memcpy(p + 32, &ba,    2);
+    short bps   = 16;           memcpy(p + 34, &bps,   2);
+    memcpy(p + 36, "data", 4);  memcpy(p + 40, &dataBytes, 4);
 
     short *sam  = reinterpret_cast<short*>(p + 44);
-    int fadeLen = (int)(0.07f * SFX_RATE);  /* 70 ms cross-fade region */
-    float lp    = 0.f;                      /* low-pass state           */
-    float lp2   = 0.f;                      /* second pole              */
+    int   fadeLen = (int)(0.07f * SFX_RATE);
+    /* Three independent filter states for layered texture */
+    float lp1 = 0.f, lp2 = 0.f;   /* mid hiss  (heavy LP) */
+    float hp1 = 0.f;               /* high sparkle state   */
+    float lp3 = 0.f, lp4 = 0.f;   /* low whoosh (very LP) */
 
     for (int i = 0; i < totalSamp; i++) {
-        float noise = ((float)rand() / RAND_MAX) * 2.f - 1.f;
-        /* Two-pole low-pass: gentle rain hiss, cuts harshness */
-        lp  = lp  * 0.80f + noise * 0.20f;
-        lp2 = lp2 * 0.88f + lp    * 0.12f;
-        float s = lp2 * 0.75f + lp * 0.10f + noise * 0.04f;
-        /* Fade envelope for seamless loop */
+        float n1 = ((float)rand() / RAND_MAX) * 2.f - 1.f;
+        float n2 = ((float)rand() / RAND_MAX) * 2.f - 1.f;
+        float n3 = ((float)rand() / RAND_MAX) * 2.f - 1.f;
+
+        /* Layer 1: mid-freq body (2-pole LP ~2 kHz) */
+        lp1 = lp1 * 0.78f + n1 * 0.22f;
+        lp2 = lp2 * 0.84f + lp1 * 0.16f;
+
+        /* Layer 2: high sparkle (HP = white - LP) */
+        hp1 = n2 - (hp1 * 0.55f + n2 * 0.45f);
+
+        /* Layer 3: low ambient whoosh (very heavy LP) */
+        lp3 = lp3 * 0.96f + n3 * 0.04f;
+        lp4 = lp4 * 0.97f + lp3 * 0.03f;
+
+        float s = lp2 * 0.58f
+                + hp1 * 0.18f
+                + lp4 * 0.12f
+                + n1  * 0.04f;  /* tiny raw noise for air */
+
+        /* Loop-boundary fade envelope */
         float env = 1.f;
-        if (i < fadeLen)                     env = (float)i / fadeLen;
-        else if (i > totalSamp - fadeLen)    env = (float)(totalSamp - i) / fadeLen;
-        sam[i] = (short)clampf(s * 0.28f * env * 32000.f, -32000.f, 32000.f);
+        if (i < fadeLen)                  env = (float)i / fadeLen;
+        else if (i > totalSamp - fadeLen) env = (float)(totalSamp - i) / fadeLen;
+
+        sam[i] = (short)clampf(s * 0.38f * env * 32000.f, -32000.f, 32000.f);
     }
     g_sfxSize[SFX_RAIN] = 44 + dataBytes;
 }
 
 /* ================================================================
- *  THUNDER SOUND GENERATOR
- *  Three-phase: sharp crack (noise burst) + decaying rumble (filtered
- *  noise with exponential envelope) + deep bass tail (60 Hz sine).
+ *  THUNDER SOUND GENERATOR  — realistic 4-phase design
+ *
+ *  Phase 1 — CRACK  (0.06s): sharp raw-noise burst, very loud.
+ *  Phase 2 — ROLL   (0.55s): heavily-filtered noise with sinusoidal
+ *             amplitude modulation — the "rolling" character of real
+ *             thunder as sound waves reflect off clouds and hills.
+ *  Phase 3 — RUMBLE (0.45s): multi-frequency noise continuing decay.
+ *  Phase 4 — BASS   (0.26s): 40+65+90 Hz sine mix, final low boom.
+ *  Total: ~1.32 s  = 29,106 samples = 58,256 bytes  (fits in 64 KB)
  * ================================================================ */
 static void buildThunderWav(void) {
-    int crackSamp  = (int)(0.08f * SFX_RATE);  /* sharp crack  */
-    int rumbleSamp = (int)(0.44f * SFX_RATE);  /* decaying noise */
-    int tailSamp   = (int)(0.30f * SFX_RATE);  /* bass rumble  */
-    int totalSamp  = crackSamp + rumbleSamp + tailSamp;
+    int crackSamp  = (int)(0.06f * SFX_RATE);
+    int rollSamp   = (int)(0.55f * SFX_RATE);
+    int rumbleSamp = (int)(0.45f * SFX_RATE);
+    int bassSamp   = (int)(0.26f * SFX_RATE);
+    int totalSamp  = crackSamp + rollSamp + rumbleSamp + bassSamp;
     int dataBytes  = totalSamp * 2;
 
     unsigned char *p = g_sfxBuf[SFX_THUNDER];
@@ -806,53 +834,108 @@ static void buildThunderWav(void) {
     memcpy(p,    "RIFF", 4); memcpy(p + 4,  &riffSz, 4);
     memcpy(p + 8, "WAVE", 4);
     memcpy(p + 12, "fmt ", 4);
-    int   fmtSz = 16;            memcpy(p + 16, &fmtSz, 4);
-    short one   = 1;             memcpy(p + 20, &one,   2);
-                                 memcpy(p + 22, &one,   2);
-    int   sr    = SFX_RATE;      memcpy(p + 24, &sr,    4);
-    int   br    = SFX_RATE * 2;  memcpy(p + 28, &br,    4);
-    short ba    = 2;             memcpy(p + 32, &ba,    2);
-    short bps   = 16;            memcpy(p + 34, &bps,   2);
-    memcpy(p + 36, "data", 4);   memcpy(p + 40, &dataBytes, 4);
+    int   fmtSz = 16;           memcpy(p + 16, &fmtSz, 4);
+    short one   = 1;            memcpy(p + 20, &one,   2);
+                                memcpy(p + 22, &one,   2);
+    int   sr    = SFX_RATE;     memcpy(p + 24, &sr,    4);
+    int   br    = SFX_RATE * 2; memcpy(p + 28, &br,    4);
+    short ba    = 2;            memcpy(p + 32, &ba,    2);
+    short bps   = 16;           memcpy(p + 34, &bps,   2);
+    memcpy(p + 36, "data", 4);  memcpy(p + 40, &dataBytes, 4);
 
     short *sam = reinterpret_cast<short*>(p + 44);
     int si = 0;
+    const float PI2L = 2.f * 3.14159265f;
 
-    /* Phase 1: lightning crack — raw white noise, fast attack */
+    /* --- Phase 1: CRACK --- */
+    /* Very fast attack (2 ms), then hold at full amplitude. */
     for (int i = 0; i < crackSamp; i++) {
         float noise = ((float)rand() / RAND_MAX) * 2.f - 1.f;
-        float att   = (i < crackSamp / 5) ? (float)i / (crackSamp / 5) : 1.f;
-        sam[si++] = (short)clampf(noise * att * 0.92f * 32000.f, -32000.f, 32000.f);
+        float att = (i < (int)(0.002f * SFX_RATE)) ?
+                     (float)i / (0.002f * SFX_RATE) : 1.f;
+        sam[si++] = (short)clampf(noise * att * 0.95f * 32000.f,
+                                  -32000.f, 32000.f);
     }
 
-    /* Phase 2: thunder body — filtered noise, exponential decay */
-    float lp = 0.f;
+    /* --- Phase 2: ROLL --- */
+    /* Exponential decay envelope modulated by slow sinusoid —
+       this creates the authentic "rolling" ups-and-downs of
+       thunder bouncing off clouds and terrain. */
+    float r1 = 0.f, r2 = 0.f, r3 = 0.f;
+    for (int i = 0; i < rollSamp; i++) {
+        float n  = ((float)rand() / RAND_MAX) * 2.f - 1.f;
+        /* Three LP filters at different cutoffs for texture */
+        r1 = r1 * 0.90f + n  * 0.10f;   /* ~1 kHz-ish low */
+        r2 = r2 * 0.94f + r1 * 0.06f;   /* heavier rumble  */
+        r3 = r3 * 0.82f + n  * 0.18f;   /* slightly crispier */
+
+        float t    = (float)i / rollSamp;
+        /* Base exponential decay */
+        float dec  = expf(-t * 4.5f);
+        /* Rolling modulation: two overlapping slow sine waves */
+        float roll = 0.70f
+                   + 0.20f * sinf(PI2L * 3.2f * t)   /* ~3 Hz roll  */
+                   + 0.10f * sinf(PI2L * 7.1f * t);  /* ~7 Hz shimmer*/
+        float env  = dec * roll;
+
+        float s = r2 * 0.55f + r3 * 0.30f + r1 * 0.10f + n * 0.02f;
+        sam[si++] = (short)clampf(s * env * 0.88f * 32000.f,
+                                  -32000.f, 32000.f);
+    }
+
+    /* --- Phase 3: RUMBLE --- */
+    /* Continues into a heavier low rumble as crack energy dissipates */
+    float u1 = r1, u2 = r2;
     for (int i = 0; i < rumbleSamp; i++) {
-        float noise = ((float)rand() / RAND_MAX) * 2.f - 1.f;
-        lp = lp * 0.86f + noise * 0.14f;
+        float n  = ((float)rand() / RAND_MAX) * 2.f - 1.f;
+        u1 = u1 * 0.93f + n  * 0.07f;
+        u2 = u2 * 0.96f + u1 * 0.04f;
+
         float t   = (float)i / rumbleSamp;
-        float env = (1.f - t) * (1.f - t);   /* quadratic decay */
-        sam[si++] = (short)clampf(lp * env * 0.70f * 32000.f, -32000.f, 32000.f);
+        float env = expf(-t * 3.0f) * (1.f + 0.15f * sinf(PI2L * 2.f * t));
+        float s   = u2 * 0.70f + u1 * 0.20f + n * 0.01f;
+        sam[si++] = (short)clampf(s * env * 0.65f * 32000.f,
+                                  -32000.f, 32000.f);
     }
 
-    /* Phase 3: deep bass tail — 58 Hz sine, decays to silence */
-    for (int i = 0; i < tailSamp; i++) {
-        float t    = (float)i / tailSamp;
-        float env  = (1.f - t) * (1.f - t);
-        float bass = sinf(2.f * 3.14159265f * 58.f * i / SFX_RATE);
-        sam[si++] = (short)clampf(bass * env * 0.40f * 32000.f, -32000.f, 32000.f);
+    /* --- Phase 4: BASS TAIL --- */
+    /* Three low-frequency sinusoids: the deep resonant boom you
+       feel in your chest after real thunder. */
+    for (int i = 0; i < bassSamp; i++) {
+        float t   = (float)i / bassSamp;
+        float env = (1.f - t) * (1.f - t) * (1.f - t); /* cubic decay */
+        float s   = sinf(PI2L * 42.f * i / SFX_RATE) * 0.50f   /* sub  */
+                  + sinf(PI2L * 68.f * i / SFX_RATE) * 0.30f   /* low  */
+                  + sinf(PI2L * 95.f * i / SFX_RATE) * 0.20f;  /* mid  */
+        sam[si++] = (short)clampf(s * env * 0.52f * 32000.f,
+                                  -32000.f, 32000.f);
     }
 
     g_sfxSize[SFX_THUNDER] = 44 + dataBytes;
 }
 
 /* ================================================================
- *  RAIN LOOP: START / STOP  (waveOut API)
- *  waveOut runs on a separate system mixer channel from PlaySound,
- *  so rain keeps playing while score / flap / coin sounds fire.
+ *  RAIN LOOP: START / STOP  (waveOut + WOM_DONE callback)
+ *
+ *  Uses a CALLBACK_FUNCTION so waveOut re-queues the buffer the
+ *  instant it finishes — this works reliably on all modern Windows
+ *  versions, unlike the older WHDR_BEGINLOOP / WHDR_ENDLOOP flags
+ *  which are only supported by some legacy hardware drivers.
  * ================================================================ */
+static void CALLBACK rainWaveCallback(HWAVEOUT hwo, UINT msg,
+                                      DWORD_PTR inst,
+                                      DWORD_PTR p1, DWORD_PTR p2)
+{
+    (void)inst; (void)p2;
+    if (msg == WOM_DONE && g_rainActive) {
+        LPWAVEHDR hdr = (LPWAVEHDR)p1;
+        hdr->dwFlags &= ~WHDR_DONE;      /* clear completion flag */
+        waveOutWrite(hwo, hdr, sizeof(WAVEHDR));
+    }
+}
+
 static void startRainLoop(void) {
-    if (g_rainActive) return;          /* already running */
+    if (g_rainActive) return;
     if (g_sfxSize[SFX_RAIN] == 0) return;
 
     WAVEFORMATEX wfx = {};
@@ -864,26 +947,26 @@ static void startRainLoop(void) {
     wfx.nAvgBytesPerSec = SFX_RATE * 2;
 
     if (waveOutOpen(&g_rainOut, WAVE_MAPPER, &wfx,
-                    0, 0, CALLBACK_NULL) != MMSYSERR_NOERROR) return;
+                    (DWORD_PTR)rainWaveCallback, 0,
+                    CALLBACK_FUNCTION) != MMSYSERR_NOERROR) return;
 
     memset(&g_rainHdr, 0, sizeof(g_rainHdr));
     g_rainHdr.lpData         = (LPSTR)(g_sfxBuf[SFX_RAIN] + 44);
     g_rainHdr.dwBufferLength = (DWORD)(g_sfxSize[SFX_RAIN] - 44);
-    g_rainHdr.dwFlags        = WHDR_BEGINLOOP | WHDR_ENDLOOP;
-    g_rainHdr.dwLoops        = 0xFFFFFFFFu;  /* loop forever */
+    g_rainHdr.dwFlags        = 0;        /* no looping flags needed */
 
+    g_rainActive = 1;                    /* set BEFORE write so callback works */
     waveOutPrepareHeader(g_rainOut, &g_rainHdr, sizeof(g_rainHdr));
     waveOutWrite(g_rainOut, &g_rainHdr, sizeof(g_rainHdr));
-    g_rainActive = 1;
 }
 
 static void stopRainLoop(void) {
     if (!g_rainActive || !g_rainOut) return;
-    waveOutReset(g_rainOut);
+    g_rainActive = 0;                    /* tell callback to stop re-queuing */
+    waveOutReset(g_rainOut);             /* stop current playback immediately  */
     waveOutUnprepareHeader(g_rainOut, &g_rainHdr, sizeof(g_rainHdr));
     waveOutClose(g_rainOut);
-    g_rainOut    = NULL;
-    g_rainActive = 0;
+    g_rainOut = NULL;
 }
 
 static void initSounds(void) {
