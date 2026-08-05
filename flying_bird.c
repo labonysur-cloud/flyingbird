@@ -1,31 +1,3 @@
-/*
- * ================================================================
- *  FLYING BIRD  -  OpenGL / GLUT  -  C Language
- *  Final Edition
- *
- *  Author  : Labony Sur
- *  Build   : Code::Blocks + MinGW + FreeGLUT
- *
- *  Linker flags required:
- *    -lopengl32 -lglu32 -lfreeglut -lwinmm -lm -std=c99
- *
- *  New features in this version:
- *    - Interactive weather selector on title screen (click to choose)
- *    - Play Again button on game over (with 1.5 second delay)
- *    - Hover effects on all buttons
- *    - Full sound effects: flap, score, die, click, hover, weather
- *    - Sound is generated in memory, no WAV files needed
- *    - Mouse coordinate conversion for accurate hit detection
- *
- *  Controls:
- *    SPACE or Left Click : Flap / Start / Restart
- *    W                   : Cycle weather mode
- *    P                   : Pause or unpause
- *    R                   : Restart (after delay on game over)
- *    F11                 : Toggle full screen
- *    ESC                 : Quit
- * ================================================================
- */
 
 /* Windows audio */
 #define WIN32_LEAN_AND_MEAN
@@ -113,7 +85,7 @@
 #define WBTN_GAP          8.0f
 /* Total width = 5*118 + 4*8 = 622; start X = (800-622)/2 = 89 */
 #define WBTN_STARTX      89.0f
-#define WBTN_Y           180.0f   /* bottom edge of buttons */
+#define WBTN_Y           120.0f   /* bottom edge of buttons */
 
 /* Play Again button (game over screen) */
 #define PLAY_BTN_W       200.0f
@@ -550,25 +522,35 @@ static int cohenSutherland(float *x1, float *y1, float *x2, float *y2, float xmi
     int outcode1 = csOutcode(*x2, *y2, xmin, xmax, ymin, ymax);
     int accept = 0;
 
-    while (1) {
+    /* Save original coordinates to prevent float precision drift and infinite loops */
+    float ox1 = *x1, oy1 = *y1;
+    float ox2 = *x2, oy2 = *y2;
+    float dx = ox2 - ox1;
+    float dy = oy2 - oy1;
+    if (dx == 0.f) dx = 0.0001f;
+    if (dy == 0.f) dy = 0.0001f;
+
+    for (int iter = 0; iter < 8; iter++) {
         if (!(outcode0 | outcode1)) {
             accept = 1; break;
         } else if (outcode0 & outcode1) {
             break;
         } else {
-            float x, y;
+            float x = 0.f, y = 0.f;
             int outcodeOut = outcode0 ? outcode0 : outcode1;
+
+            /* Use dx and dy from original points so the slope never drifts! */
             if (outcodeOut & CS_TOP) {
-                x = *x1 + (*x2 - *x1) * (ymax - *y1) / (*y2 - *y1);
+                x = ox1 + dx * (ymax - oy1) / dy;
                 y = ymax;
             } else if (outcodeOut & CS_BOTTOM) {
-                x = *x1 + (*x2 - *x1) * (ymin - *y1) / (*y2 - *y1);
+                x = ox1 + dx * (ymin - oy1) / dy;
                 y = ymin;
             } else if (outcodeOut & CS_RIGHT) {
-                y = *y1 + (*y2 - *y1) * (xmax - *x1) / (*x2 - *x1);
+                y = oy1 + dy * (xmax - ox1) / dx;
                 x = xmax;
             } else if (outcodeOut & CS_LEFT) {
-                y = *y1 + (*y2 - *y1) * (xmin - *x1) / (*x2 - *x1);
+                y = oy1 + dy * (xmin - ox1) / dx;
                 x = xmin;
             }
             if (outcodeOut == outcode0) {
@@ -712,8 +694,8 @@ static void initSounds(void){
       buildWav(SFX_DIE,f,d,5,0.50f,1); }
 
     /* --- Click: sharp button press --- */
-    { float f[]={700.f,350.f};
-      float d[]={0.025f,0.035f};
+    { float f[] = {600.f, 900.f};
+      float d[] = {0.05f, 0.05f};
       buildWav(SFX_CLICK,f,d,2,0.30f,0); }
 
     /* --- Hover: soft tick --- */
@@ -726,10 +708,10 @@ static void initSounds(void){
       float d[]={0.07f,0.07f,0.07f,0.18f};
       buildWav(SFX_WEATHER,f,d,4,0.42f,0); }
 
-    /* Coin collect: bright ascending ting */
-    { float f[]={1047.f,1319.f,1568.f};
-      float d[]={0.04f,0.04f,0.08f};
-      buildWav(SFX_COIN,f,d,3,0.40f,0); }
+    /* Coin collect: Beautiful bright arcade chime */
+    { float f[] = {987.77f, 1318.51f};
+      float d[] = {0.1f, 0.2f};
+      buildWav(SFX_COIN, f, d, 2, 0.45f, 0); }
 }
 
 /* ================================================================
@@ -1254,7 +1236,7 @@ static void drawTrees(void) {
         else col(40, 140, 50);
         float anim = sinf(g_frame * 0.05f + i) * 2.f;
         fillCircle(x + anim, baseY + 30.f, 20.f, 12);
-        
+
         if (g_weather == WEATHER_SNOW) {
             col(255, 255, 255);
             fillCircle(x + anim, baseY + 42.f, 12.f, 8);
@@ -1425,11 +1407,7 @@ static void setMat(float dr, float dg, float db,
     glMaterialfv(GL_FRONT, GL_DIFFUSE,   d);
     glMaterialfv(GL_FRONT, GL_AMBIENT,   a);
     glMaterialfv(GL_FRONT, GL_SPECULAR,  s);
-    glMaterialfv(GL_FRONT, GL_SHININESS, sh);
-}
-
-static void drawChickGeometry(float tiltAngle, float shearFactor)
-{
+    glMaterialfv(GL_FRONT, GL_SHININESS,static void drawChickGeometry(float tiltAngle, float shearFactor, int wingFrame) {
     glRotatef(-tiltAngle * 0.55f, 0.0f, 0.0f, 1.0f);
 
     if (shearFactor > 0.001f) {
@@ -1442,87 +1420,87 @@ static void drawChickGeometry(float tiltAngle, float shearFactor)
         glMultMatrixf(m);
     }
 
-    setMat(0.96f,0.96f,0.96f, 0.55f,0.55f,0.55f, 0.35f,0.35f,0.35f, 18.f);
-    glutSolidSphere(1.0, 30, 30);
+    /* Force material colors to show up properly */
+    glEnable(GL_COLOR_MATERIAL);
+    glColorMaterial(GL_FRONT, GL_AMBIENT_AND_DIFFUSE);
 
-    /* Cheek puffs */
-    setMat(0.97f,0.92f,0.92f, 0.50f,0.46f,0.46f, 0.2f,0.2f,0.2f, 10.f);
+    /* 1. Main Body (Yellow, slightly squished) */
+    glColor3f(1.0f, 0.9f, 0.1f);
+    setMat(1.0f, 0.9f, 0.1f,   0.8f, 0.7f, 0.1f,   0.3f, 0.3f, 0.1f, 20.f);
     glPushMatrix();
-        glTranslatef(-0.55f, -0.10f, 0.78f);
-        glutSolidSphere(0.32, 16, 16);
-    glPopMatrix();
-    glPushMatrix();
-        glTranslatef(0.55f, -0.10f, 0.78f);
-        glutSolidSphere(0.32, 16, 16);
+        glScalef(1.1f, 0.9f, 1.0f);
+        glutSolidSphere(1.0, 30, 30);
     glPopMatrix();
 
-    /* Left eye */
+    /* 2. Eye (White sphere on the side facing the camera: +Z) */
     glPushMatrix();
-        glTranslatef(-0.38f, 0.30f, 0.88f);
-        setMat(0.98f,0.98f,0.98f, 0.55f,0.55f,0.55f, 0.9f,0.9f,0.9f, 60.f);
-        glutSolidSphere(0.30, 16, 16);
-        glTranslatef(-0.03f, 0.02f, 0.22f);
-        setMat(0.06f,0.06f,0.08f, 0.03f,0.03f,0.04f, 0.5f,0.5f,0.5f, 50.f);
-        glutSolidSphere(0.19, 12, 12);
-        glTranslatef(-0.07f, 0.09f, 0.14f);
-        setMat(1.0f,1.0f,1.0f, 1.0f,1.0f,1.0f, 1.0f,1.0f,1.0f, 128.f);
-        glutSolidSphere(0.07, 8, 8);
+        glTranslatef(0.40f, 0.25f, 0.95f); /* Pushed out more on Z */
+        glColor3f(1.0f, 1.0f, 1.0f);
+        setMat(1.0f, 1.0f, 1.0f,   0.9f, 0.9f, 0.9f,   1.0f, 1.0f, 1.0f, 80.f);
+        glutSolidSphere(0.35, 20, 20); /* Bigger white eyeball */
+
+        /* Pupil (Black) */
+        glTranslatef(0.15f, 0.05f, 0.28f);
+        glColor3f(0.1f, 0.1f, 0.1f);
+        setMat(0.1f, 0.1f, 0.1f,   0.0f, 0.0f, 0.0f,   0.5f, 0.5f, 0.5f, 100.f);
+        glutSolidSphere(0.14, 12, 12);
+
+        /* Specular highlight (Tiny white dot) */
+        glTranslatef(0.08f, 0.08f, 0.10f);
+        glColor3f(1.0f, 1.0f, 1.0f);
+        setMat(1.0f, 1.0f, 1.0f,   1.0f, 1.0f, 1.0f,   1.0f, 1.0f, 1.0f, 128.f);
+        glutSolidSphere(0.05, 8, 8);
     glPopMatrix();
 
-    /* Right eye */
+    /* 3. Beak (Red protruding to the right: +X) */
     glPushMatrix();
-        glTranslatef(0.38f, 0.30f, 0.88f);
-        setMat(0.98f,0.98f,0.98f, 0.55f,0.55f,0.55f, 0.9f,0.9f,0.9f, 60.f);
-        glutSolidSphere(0.30, 16, 16);
-        glTranslatef(0.03f, 0.02f, 0.22f);
-        setMat(0.06f,0.06f,0.08f, 0.03f,0.03f,0.04f, 0.5f,0.5f,0.5f, 50.f);
-        glutSolidSphere(0.19, 12, 12);
-        glTranslatef(0.07f, 0.09f, 0.14f);
-        setMat(1.0f,1.0f,1.0f, 1.0f,1.0f,1.0f, 1.0f,1.0f,1.0f, 128.f);
-        glutSolidSphere(0.07, 8, 8);
+        glTranslatef(1.05f, -0.1f, 0.45f); /* Moved further right to stick out of body */
+
+        /* Top lip */
+        glColor3f(1.0f, 0.1f, 0.1f);
+        setMat(1.0f, 0.1f, 0.1f,   0.8f, 0.05f, 0.05f,   0.4f, 0.1f, 0.1f, 30.f); /* Bright Red */
+        glPushMatrix();
+            glTranslatef(0.0f, 0.1f, 0.0f);
+            glScalef(0.6f, 0.25f, 0.4f); /* Made beak larger */
+            glutSolidSphere(1.0, 20, 20);
+        glPopMatrix();
+
+        /* Bottom lip */
+        glColor3f(0.8f, 0.05f, 0.05f);
+        setMat(0.8f, 0.05f, 0.05f,  0.7f, 0.05f, 0.05f,  0.3f, 0.05f, 0.05f, 30.f); /* Slightly darker Red */
+        glPushMatrix();
+            glTranslatef(-0.1f, -0.15f, 0.0f);
+            glScalef(0.4f, 0.18f, 0.3f);
+            glutSolidSphere(1.0, 20, 20);
+        glPopMatrix();
     glPopMatrix();
 
-    /* Beak */
+    /* 4. Wing (Orange on the side facing camera: +Z) */
     glPushMatrix();
-        glTranslatef(0.0f, -0.05f, 1.08f);
-        glRotatef(-90.0f, 1.0f, 0.0f, 0.0f);
-        setMat(0.88f,0.62f,0.08f, 0.45f,0.30f,0.04f, 0.4f,0.3f,0.1f, 25.f);
-        glutSolidCone(0.18, 0.38, 10, 1);
+        glTranslatef(-0.25f, -0.05f, 1.10f); /* Pushed out to Z=1.1 so it's clearly visible */
+        /* Flap animation based on wingFrame (0=mid, 1=up, 2=down) */
+        float wingAngle = 0.0f;
+        if (wingFrame == 1) wingAngle = 45.0f;
+        else if (wingFrame == 2) wingAngle = -45.0f;
+
+        glRotatef(wingAngle + tiltAngle * 0.5f, 0.0f, 0.0f, 1.0f);
+        glColor3f(1.0f, 0.5f, 0.0f);
+        setMat(1.0f, 0.5f, 0.0f,  0.8f, 0.4f, 0.0f,  0.5f, 0.2f, 0.0f, 20.f); /* Orange wing */
+        glScalef(0.6f, 0.35f, 0.15f); /* Made wing much larger */
+        glutSolidSphere(1.0, 20, 20);
     glPopMatrix();
 
-    /* Legs */
-    setMat(0.85f,0.40f,0.05f, 0.40f,0.20f,0.02f, 0.2f,0.1f,0.0f, 10.f);
-    glPushMatrix();
-        glTranslatef(-0.28f, -1.0f, 0.28f);
-        glScalef(0.10f, 0.45f, 0.10f);
-        glutSolidCube(1.0);
-    glPopMatrix();
-    glPushMatrix();
-        glTranslatef(0.28f, -1.0f, 0.28f);
-        glScalef(0.10f, 0.45f, 0.10f);
-        glutSolidCube(1.0);
-    glPopMatrix();
-    glPushMatrix();
-        glTranslatef(-0.28f, -1.42f, 0.38f);
-        glScalef(0.36f, 0.08f, 0.14f);
-        glutSolidCube(1.0);
-    glPopMatrix();
-    glPushMatrix();
-        glTranslatef(0.28f, -1.42f, 0.38f);
-        glScalef(0.36f, 0.08f, 0.14f);
-        glutSolidCube(1.0);
-    glPopMatrix();
+    glDisable(GL_COLOR_MATERIAL);
 }
 
-static void drawBird(void)
-{
+static void drawBird(void) {
     begin3D(BIRD_X, g_bird.y, 54);
     glEnable(GL_DEPTH_TEST);
     glClear(GL_DEPTH_BUFFER_BIT);
     glEnable(GL_LIGHTING);
     glEnable(GL_LIGHT0);
     setupChickLight();
-    drawChickGeometry(g_bird.angle, g_shearX);
+    drawChickGeometry(g_bird.angle, g_shearX, g_bird.wingFrame);
     glDisable(GL_LIGHTING);
     glDisable(GL_LIGHT0);
     glDisable(GL_DEPTH_TEST);
@@ -1537,6 +1515,7 @@ static void drawBird(void)
         midpointCircle(0, 0, (int)BIRD_RADIUS);
         glPointSize(1.0f);
     glPopMatrix();
+}Matrix();
 }
 
 /* ================================================================
@@ -1851,12 +1830,12 @@ static void drawWeatherIcon(WeatherMode w,float cx,float cy){
 }
 
 static void drawDifficultySelector(void) {
-    float startX = WORLD_W/2.f - 170.f;
-    float y = 180.f;
+    float startX = WORLD_W / 2.f - 170.f;
+    float y = 260.f;
     float w = 110.f;
     float h = 40.f;
-    const char* labels[] = {"EASY", "NORMAL", "HARD"};
-    
+    const char *labels[] = {"EASY", "NORMAL", "HARD"};
+
     for (int i=0; i<3; i++) {
         float bx = startX + i*(w + 10.f);
         if (i == g_difficulty) {
@@ -1866,13 +1845,13 @@ static void drawDifficultySelector(void) {
         if (i == DIFF_EASY) col(100, 200, 100);
         else if (i == DIFF_NORMAL) col(200, 200, 100);
         else col(200, 100, 100);
-        
+
         if (i == g_hoveredDiff) col4(255, 255, 255, 180);
-        
+
         fillRect(bx, y, w, h);
         col(0,0,0);
         outlineRect(bx, y, w, h, 2.f);
-        
+
         float lw = strokeWidth(labels[i], 0.08f);
         col(255, 255, 255);
         strokeText(bx + w/2.f - lw/2.f, y + 10.f, 0.08f, labels[i]);
@@ -2068,21 +2047,21 @@ static void drawPlayAgainButton(float px,float py){
 
 static void drawMedal(int score, float cx, float cy) {
     if (score < 5) return;
-    
+
     col(200, 40, 40); // red ribbons
     fillRect(cx - 15.f, cy - 35.f, 10.f, 35.f);
     fillRect(cx + 5.f, cy - 35.f, 10.f, 35.f);
-    
+
     if (score >= 30) {
         col4(255, 255, 200, 150);
         fillCircle(cx, cy, 32.f, 16);
     }
-    
+
     if (score >= 50) col(200, 150, 255); // Platinum
     else if (score >= 30) col(255, 215, 0); // Gold
     else if (score >= 15) col(192, 192, 192); // Silver
     else col(205, 127, 50); // Bronze
-    
+
     fillCircle(cx, cy, 22.f, 16);
     col(255, 255, 255);
     glLineWidth(3.f);
@@ -2099,7 +2078,7 @@ static void drawGameOverScreen(void){
     col4(0,0,0,110); fillRect(0,0,WORLD_W,WORLD_H);
 
     // Moved the panel UP to the top half so the middle is totally clear
-    float px = WORLD_W/2.f - 180.f, py = 480.f; 
+    float px = WORLD_W/2.f - 180.f, py = 480.f;
     col4(250,242,205,245); fillRect(px,py,360.f,180.f);
     col(90,60,20);   outlineRect(px,py,360.f,180.f,4.f);
     col(180,130,50); outlineRect(px+4.f,py+4.f,352.f,172.f,3.f);
@@ -2121,64 +2100,71 @@ static void drawGameOverScreen(void){
 
     /* Realistic 3D Perspective GAME OVER text - EXACTLY in the middle */
     {
-        int vpW = 1000, vpH = 260; 
+        int vpW = 1000, vpH = 260;
         int vpX = g_vpX + (g_vpW - vpW) / 2;
         int vpY = g_vpY + (g_vpH - vpH) / 2; // EXACT screen center!
         glViewport(vpX, vpY, vpW, vpH);
-        
+
         glMatrixMode(GL_PROJECTION);
         glPushMatrix(); glLoadIdentity();
         gluPerspective(45.0, (double)vpW / (double)vpH, 0.1, 200.0);
-        
+
         glMatrixMode(GL_MODELVIEW);
         glPushMatrix(); glLoadIdentity();
         // Camera slightly below to look UP at the massive 3D text
         gluLookAt(0.0, -1.0, 10.0,   0.0, 0.0, 0.0,   0.0, 1.0, 0.0);
-        
-        float bob = sinf(g_frame * 0.05f) * 0.18f;
-        float scale = 0.018f; // Big, imposing size
+        float bob       = 0.0f; /* Static */
+        float scale     = 0.018f;
         float textWidth = 950.0f * scale;
-        
+
         glTranslatef(-textWidth / 2.0f, bob, 0.0f);
         glScalef(scale, scale, scale);
-        
+
         const char *gtxt = "GAME OVER";
-        
-        // 1. Drop shadow (deep back and offset)
-        glLineWidth(6.0f);
-        glColor4f(0.0f, 0.0f, 0.0f, 0.7f);
+
+        /* Enable blending and smooth lines for beauty */
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glEnable(GL_LINE_SMOOTH);
+
+        /* 1. Drop shadow (deep back and offset) */
+        glLineWidth(12.0f);
+        glColor4f(0.0f, 0.0f, 0.0f, 0.5f);
         glPushMatrix();
         glTranslatef(20.0f, -20.0f, -30.0f);
         for (const char *c = gtxt; *c; c++) glutStrokeCharacter(GLUT_STROKE_ROMAN, *c);
         glPopMatrix();
 
-        // 2. Thick 3D Body (Tight extrusion for solid block look)
-        for(int i = 0; i < 4; i++) {
-            float depth = i / 3.0f; // 0.0 to 1.0
-            glColor3f(0.3f + 0.3f * depth, 0.0f, 0.0f); // Dark to medium red
+        /* 2. Dense Solid Extrusion (3D Body) */
+        glLineWidth(14.0f); /* Thick bold extrusion */
+        int layers = 15;
+        for (int i = layers; i >= 1; i--) {
+            float depth = (float)i / layers;
+            float offset = i * 1.5f;
+            glColor3f(0.6f - depth * 0.4f, 0.0f, 0.0f);
             glPushMatrix();
-            glTranslatef(0.0f, 0.0f, -20.0f * (1.0f - depth)); // Very tight Z-spacing
+            glTranslatef(offset, -offset, -offset * 2.0f);
             for (const char *c = gtxt; *c; c++) glutStrokeCharacter(GLUT_STROKE_ROMAN, *c);
             glPopMatrix();
         }
 
-        // 3. Front Face (Bright Pop Red)
+        /* 3. Front Face (Bright Pop Red) */
         glColor3f(1.0f, 0.15f, 0.15f);
-        glLineWidth(3.0f); // Crisp edge
+        glLineWidth(8.0f); /* Bold face */
         glPushMatrix();
-        for (const char *c = gtxt; *c; c++) glutStrokeCharacter(GLUT_STROKE_ROMAN, *c);
-        glPopMatrix();
-        
-        // 4. White Specular Highlight (Inner detail)
-        glColor3f(1.0f, 0.8f, 0.8f);
-        glLineWidth(1.0f);
-        glPushMatrix();
-        glTranslatef(0.0f, 0.0f, 2.0f); // Slightly in front
         for (const char *c = gtxt; *c; c++) glutStrokeCharacter(GLUT_STROKE_ROMAN, *c);
         glPopMatrix();
 
+        /* 4. White Specular Highlight (Inner detail) */
+        glColor3f(1.0f, 0.8f, 0.8f);
+        glLineWidth(3.0f);
+        glPushMatrix();
+        for (const char *c = gtxt; *c; c++) glutStrokeCharacter(GLUT_STROKE_ROMAN, *c);
+        glPopMatrix();
+
+        glDisable(GL_LINE_SMOOTH);
         glLineWidth(1.0f);
-        
+
         glMatrixMode(GL_PROJECTION); glPopMatrix();
         glMatrixMode(GL_MODELVIEW);  glPopMatrix();
         glViewport(g_vpX, g_vpY, g_vpW, g_vpH);
@@ -2544,8 +2530,9 @@ static void timerCallback(int v){
  * ================================================================ */
 
 static void doFlap(void){
-    if(g_state==STATE_TITLE){
+    if (g_state == STATE_TITLE) {
         resetGame();
+        playSound(SFX_FLAP);
         return;
     }
     if(g_state==STATE_GAMEOVER){
@@ -2694,7 +2681,7 @@ static void passiveMotion(int x,int y){
         g_hoveredWeather=hoveredWeatherButton();
         if(g_hoveredWeather!=prev && g_hoveredWeather>=0)
             playSound(SFX_HOVER);
-            
+
         if (g_state==STATE_TITLE) {
             int prevD = g_hoveredDiff;
             g_hoveredDiff = hoveredDiffButton();

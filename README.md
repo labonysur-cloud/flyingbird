@@ -397,17 +397,18 @@ All four required OpenGL primitive types are used meaningfully throughout the sc
 ## 🎮 Features
 
 ### Core Gameplay
+- **Beautiful 3D Bird Geometry** — vibrant yellow body, protruding red beak, and animated orange wings (side-profile)
 - **Gravity physics** — constant downward acceleration with terminal velocity cap
 - **Flap mechanic** — upward velocity impulse on Space / left click
 - **Smooth bird tilt** — angle linearly interpolates toward target (`lerp`) every frame
-- **3-frame wing animation** — up / mid / down cycling at configurable rate
+- **Animated wing flapping** — physics-driven wing rotation that reacts to your clicks
 - **Progressive difficulty** — pipe speed increases `+0.002 px/frame` indefinitely
 - **3 Difficulty Levels** — Easy / Normal / Hard (affects pipe gap and speed)
 
 ### Pipe & Coin System
 - 3 pipe pairs simultaneously on screen with random gap heights
 - Pipe cap extends wider than body (capped end detail, DDA-outlined)
-- Each pipe has a **3D spinning gold coin** in the gap — collect for bonus points
+- Each pipe has a **Pure Gold 3D spinning coin** in the gap — collect for bonus points
 - Coin collection popup `+5` animation on screen
 
 ### Collision & Scoring
@@ -446,17 +447,18 @@ All scene elements adapt — pipe colour, grass shade, building brightness, wind
 - **Loading arc** — circular progress indicator before Play Again button appears
 
 ### Audio (Programmatic — No .wav Files)
-All sounds are **generated in memory** as 16-bit PCM WAV data using frequency sweeps with attack/release envelopes:
+All sounds are **generated in memory** as 16-bit PCM WAV data using frequency sweeps with attack/release envelopes.
+*(Includes a custom **Sound Priority Engine** that prevents rapid flapping from interrupting important sounds like coin collection!)*
 
 | Sound | Effect | Trigger |
 |-------|--------|---------|
-| Flap | Quick rising chirp | Every flap |
+| Flap | High-frequency cute chirp | Every flap |
 | Score | Happy C–E–G arpeggio | Passing a pipe |
 | Die | Sad descending melody | Collision |
 | Click | Sharp button press | UI buttons |
 | Hover | Soft tick | Button hover |
 | Weather | Rising arpeggio | Weather change |
-| Coin | Bright ascending ting | Coin collected |
+| Coin | Beautiful bright arcade chime | Coin collected |
 
 ### Visual Polish
 | Effect | Description |
