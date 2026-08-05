@@ -1,6 +1,6 @@
 /*
  * ================================================================
- *  FLAPPY BIRD CLONE  -  OpenGL / GLUT  -  C++ Language
+ *  FLYING BIRD  -  OpenGL / GLUT  -  C++ Language
  *  Final Edition
  *
  *  Author  : Labony Sur
@@ -1951,15 +1951,15 @@ static void drawWeatherSelector(void) {
 static void drawTitleScreen(void) {
     float tY = WORLD_H * 0.74f + g_titleBobY;
     float sc = 0.30f;
-    float w1 = strokeWidth("FLAPPY", sc), w2 = strokeWidth("BIRD", sc);
+    float w1 = strokeWidth("FLYING", sc), w2 = strokeWidth("BIRD", sc);
 
     /* Title shadow */
     col(50, 80, 20);
-    strokeText(WORLD_W / 2.f - w1 / 2.f + 3.f, tY - 3.f,      sc, "FLAPPY");
+    strokeText(WORLD_W / 2.f - w1 / 2.f + 3.f, tY - 3.f,      sc, "FLYING");
     strokeText(WORLD_W / 2.f - w2 / 2.f + 3.f, tY - 55.f - 3.f, sc, "BIRD");
     /* Title text */
     col(255, 220, 40);
-    strokeText(WORLD_W / 2.f - w1 / 2.f, tY,        sc, "FLAPPY");
+    strokeText(WORLD_W / 2.f - w1 / 2.f, tY,        sc, "FLYING");
     col(120, 230, 60);
     strokeText(WORLD_W / 2.f - w2 / 2.f, tY - 55.f, sc, "BIRD");
     /* Border box */
@@ -2759,7 +2759,7 @@ int main(int argc, char **argv) {
     glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB);
     glutInitWindowSize(WIN_W, WIN_H);
     glutInitWindowPosition(50, 30);
-    glutCreateWindow("Flappy Bird  -  OpenGL Edition");
+    glutCreateWindow("Flying Bird  -  OpenGL Edition");
 
     /* Start in full screen */
     glutFullScreen();
@@ -2795,7 +2795,7 @@ int main(int argc, char **argv) {
  *    Other linker options: -lopengl32 -lglu32 -lfreeglut -lwinmm
  *
  *  Or on command line:
- *    g++ -std=c++17 flappy_bird.cpp -o flappy_bird.exe
+ *    g++ -std=c++17 flying_bird.cpp -o flying_bird.exe
  *        -lopengl32 -lglu32 -lfreeglut -lwinmm
  * ================================================================
  */

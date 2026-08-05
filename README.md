@@ -7,10 +7,10 @@
   <img src="https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge" />
 </p>
 
-<h1 align="center">🐦 Flappy Bird — OpenGL Computer Graphics Project</h1>
+<h1 align="center">🐦 Flying Bird — OpenGL Computer Graphics Project</h1>
 
 <p align="center">
-  <b>A fully playable, visually rich Flappy Bird clone built entirely in C++ using OpenGL and FreeGLUT.</b><br/>
+  <b>A fully playable, visually rich Flying Bird game built entirely in C++ using OpenGL and FreeGLUT.</b><br/>
   Submitted as a <b>Computer Graphics Lab Project</b> demonstrating mastery of graphics algorithms,<br/>
   2D &amp; 3D transformations, primitives, animation, and real-time rendering — no game engines, no image assets, pure OpenGL code.
 </p>
@@ -31,7 +31,7 @@
 
 ## 📌 Project Overview
 
-This project is a complete **Flappy Bird clone** written from scratch in **C++17** using **OpenGL** and **FreeGLUT**. Every single visual element — the bird, pipes, clouds, sky, city skyline, rain, lightning, stars, sun, moon, 3D chick, 3D spinning coins, and all UI — is drawn programmatically using OpenGL drawing primitives. There are **zero image files** and **zero external assets** of any kind.
+This project is a complete **Flying Bird game** written from scratch in **C++17** using **OpenGL** and **FreeGLUT**. Every single visual element — the bird, pipes, clouds, sky, city skyline, rain, lightning, stars, sun, moon, 3D chick, 3D spinning coins, and all UI — is drawn programmatically using OpenGL drawing primitives. There are **zero image files** and **zero external assets** of any kind.
 
 The project was developed specifically to satisfy the **Computer Graphics Lab Project rubric (Week 6 Mini Project)**, and goes far beyond the minimum requirements by implementing **five** graphics algorithms, all **four** major 2D transformation types, full **3D perspective rendering** with `GL_LIGHTING`, an advanced **particle system**, a **reflection** effect, and **five dynamic weather environments**.
 
@@ -480,10 +480,10 @@ All sounds are **generated in memory** as 16-bit PCM WAV data using frequency sw
 
 ## 📐 Code Architecture
 
-The entire game lives in a single file `flappy_bird.cpp` (~2800 lines) structured into clearly labelled sections.
+The entire game lives in a single file `flying_bird.cpp` (~2800 lines) structured into clearly labelled sections.
 
 ```
-flappy_bird.cpp
+flying_bird.cpp
 │
 ├── Constants & Defines        Window size, physics, pipe, weather, sound IDs
 ├── Enums & Structs             GameState, WeatherMode, Difficulty, Bird, Pipe, Cloud, Particle...
@@ -733,18 +733,18 @@ cd flappybird
 
 **Option A — Code::Blocks (Recommended)**
 ```
-Open FlappyBird.cbp → Press F9 (Build and Run)
+Open FlyingBird.cbp → Press F9 (Build and Run)
 ```
 
 **Option B — Command Line**
 ```bash
 # Using Code::Blocks MinGW g++
-"C:\Program Files\CodeBlocks\MinGW\bin\g++.exe" -std=c++17 flappy_bird.cpp ^
-    -o flappy_bird.exe -lopengl32 -lglu32 -lfreeglut -lwinmm
-flappy_bird.exe
+"C:\Program Files\CodeBlocks\MinGW\bin\g++.exe" -std=c++17 flying_bird.cpp ^
+    -o flying_bird.exe -lopengl32 -lglu32 -lfreeglut -lwinmm
+flying_bird.exe
 ```
 
-> Make sure `freeglut.dll` is in the same folder as `flappy_bird.exe`.
+> Make sure `freeglut.dll` is in the same folder as `flying_bird.exe`.
 
 ---
 
@@ -769,9 +769,9 @@ flappy_bird.exe
 
 ```
 flappybird/
-├── flappy_bird.cpp     Complete game source (~2800 lines, C++17, single file)
-├── flappy_bird.c       Original C99 source (kept for reference)
-├── FlappyBird.cbp      Code::Blocks project file (g++ / c++17, linker flags pre-set)
+├── flying_bird.cpp     Complete game source (~2800 lines, C++17, single file)
+├── flying_bird.c       Original C99 source (kept for reference)
+├── FlyingBird.cbp      Code::Blocks project file (g++ / c++17, linker flags pre-set)
 ├── freeglut.dll        FreeGLUT runtime DLL (required next to .exe)
 ├── highscore.txt       Persistent high score storage
 ├── README.md           This file
@@ -798,7 +798,7 @@ flappybird/
 | Window appears black | Update your graphics card drivers |
 | Mouse clicks not registering correctly | Resize window with F11 to reset the viewport mapping |
 | C++ compile errors with system g++ | Use **Code::Blocks MinGW g++** at `C:\Program Files\CodeBlocks\MinGW\bin\g++.exe` |
-| `at_quick_exit` / `quick_exit` errors | Use C-style headers (`math.h` etc.) — already fixed in `flappy_bird.cpp` |
+| `at_quick_exit` / `quick_exit` errors | Use C-style headers (`math.h` etc.) — already fixed in `flying_bird.cpp` |
 
 ---
 
