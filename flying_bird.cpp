@@ -805,7 +805,7 @@ static void buildRainWav(void) {
         if (i < fadeLen)                  env = (float)i / fadeLen;
         else if (i > totalSamp - fadeLen) env = (float)(totalSamp - i) / fadeLen;
 
-        sam[i] = (short)clampf(s * 0.38f * env * 32000.f, -32000.f, 32000.f);
+        sam[i] = (short)clampf(s * 0.75f * env * 32000.f, -32000.f, 32000.f);
     }
     g_sfxSize[SFX_RAIN] = 44 + dataBytes;
 }
@@ -853,7 +853,7 @@ static void buildThunderWav(void) {
         float noise = ((float)rand() / RAND_MAX) * 2.f - 1.f;
         float att = (i < (int)(0.002f * SFX_RATE)) ?
                      (float)i / (0.002f * SFX_RATE) : 1.f;
-        sam[si++] = (short)clampf(noise * att * 0.95f * 32000.f,
+        sam[si++] = (short)clampf(noise * att * 1.00f * 32000.f,
                                   -32000.f, 32000.f);
     }
 
@@ -879,7 +879,7 @@ static void buildThunderWav(void) {
         float env  = dec * roll;
 
         float s = r2 * 0.55f + r3 * 0.30f + r1 * 0.10f + n * 0.02f;
-        sam[si++] = (short)clampf(s * env * 0.88f * 32000.f,
+        sam[si++] = (short)clampf(s * env * 1.05f * 32000.f,
                                   -32000.f, 32000.f);
     }
 
@@ -894,7 +894,7 @@ static void buildThunderWav(void) {
         float t   = (float)i / rumbleSamp;
         float env = expf(-t * 3.0f) * (1.f + 0.15f * sinf(PI2L * 2.f * t));
         float s   = u2 * 0.70f + u1 * 0.20f + n * 0.01f;
-        sam[si++] = (short)clampf(s * env * 0.65f * 32000.f,
+        sam[si++] = (short)clampf(s * env * 0.85f * 32000.f,
                                   -32000.f, 32000.f);
     }
 
@@ -907,7 +907,7 @@ static void buildThunderWav(void) {
         float s   = sinf(PI2L * 42.f * i / SFX_RATE) * 0.50f   /* sub  */
                   + sinf(PI2L * 68.f * i / SFX_RATE) * 0.30f   /* low  */
                   + sinf(PI2L * 95.f * i / SFX_RATE) * 0.20f;  /* mid  */
-        sam[si++] = (short)clampf(s * env * 0.52f * 32000.f,
+        sam[si++] = (short)clampf(s * env * 0.75f * 32000.f,
                                   -32000.f, 32000.f);
     }
 
@@ -978,7 +978,7 @@ static void initSounds(void) {
      * ---------------------------------------------------------------- */
     { float f[] = {392.f, 587.f, 880.f, 660.f};
       float d[] = {0.020f, 0.020f, 0.020f, 0.040f};
-      buildWav(SFX_FLAP, f, d, 4, 0.38f, 0); }
+      buildWav(SFX_FLAP, f, d, 4, 0.65f, 0); }
 
     /* ----------------------------------------------------------------
      * SFX_SCORE — Triumphant 5-note fanfare  C5→E5→G5→C6→E6
@@ -987,7 +987,7 @@ static void initSounds(void) {
      * ---------------------------------------------------------------- */
     { float f[] = {523.f, 659.f, 784.f, 1047.f, 1319.f};
       float d[] = {0.055f, 0.055f, 0.055f, 0.070f, 0.120f};
-      buildWav(SFX_SCORE, f, d, 5, 0.52f, 0); }
+      buildWav(SFX_SCORE, f, d, 5, 0.85f, 0); }
 
     /* ----------------------------------------------------------------
      * SFX_DIE — Dramatic descending wail  G4→F4→Eb4→D4→C4→Bb3→G3
@@ -996,7 +996,7 @@ static void initSounds(void) {
      * ---------------------------------------------------------------- */
     { float f[] = {392.f, 349.f, 311.f, 294.f, 261.f, 233.f, 196.f};
       float d[] = {0.09f,  0.09f,  0.10f, 0.11f, 0.11f, 0.12f, 0.19f};
-      buildWav(SFX_DIE, f, d, 7, 0.55f, 1); }
+      buildWav(SFX_DIE, f, d, 7, 0.90f, 1); }
 
     /* ----------------------------------------------------------------
      * SFX_CLICK — Crisp satisfying UI pop
@@ -1005,7 +1005,7 @@ static void initSounds(void) {
      * ---------------------------------------------------------------- */
     { float f[] = {1400.f, 800.f, 400.f};
       float d[] = {0.010f, 0.015f, 0.018f};
-      buildWav(SFX_CLICK, f, d, 3, 0.42f, 0); }
+      buildWav(SFX_CLICK, f, d, 3, 0.75f, 0); }
 
     /* ----------------------------------------------------------------
      * SFX_HOVER — Whisper-soft mouse-over tick
@@ -1014,7 +1014,7 @@ static void initSounds(void) {
      * ---------------------------------------------------------------- */
     { float f[] = {1200.f, 900.f};
       float d[] = {0.012f, 0.018f};
-      buildWav(SFX_HOVER, f, d, 2, 0.16f, 0); }
+      buildWav(SFX_HOVER, f, d, 2, 0.35f, 0); }
 
     /* ----------------------------------------------------------------
      * SFX_WEATHER — Magical 5-note pentatonic sweep  C4→E4→G4→C5→E5
@@ -1023,7 +1023,7 @@ static void initSounds(void) {
      * ---------------------------------------------------------------- */
     { float f[] = {262.f, 330.f, 392.f, 523.f, 659.f};
       float d[] = {0.065f, 0.065f, 0.075f, 0.085f, 0.175f};
-      buildWav(SFX_WEATHER, f, d, 5, 0.48f, 1); }
+      buildWav(SFX_WEATHER, f, d, 5, 0.80f, 1); }
 
     /* ----------------------------------------------------------------
      * SFX_COIN — Classic 4-note ascending arcade chime  C6→E6→G6→C7
@@ -1032,7 +1032,7 @@ static void initSounds(void) {
      * ---------------------------------------------------------------- */
     { float f[] = {1047.0f, 1319.0f, 1568.0f, 2093.0f};
       float d[] = {0.045f,  0.045f,  0.045f,  0.125f};
-      buildWav(SFX_COIN, f, d, 4, 0.68f, 1); }
+      buildWav(SFX_COIN, f, d, 4, 0.95f, 1); }
 
     /* ----------------------------------------------------------------
      * SFX_RAIN  — filtered noise loop (built separately, played via
