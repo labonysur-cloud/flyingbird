@@ -1,24 +1,25 @@
 <p align="center">
-  <img src="https://img.shields.io/badge/Language-C99-blue?style=for-the-badge&logo=c" />
+  <img src="https://img.shields.io/badge/Language-C%2B%2B17-blue?style=for-the-badge&logo=cplusplus" />
   <img src="https://img.shields.io/badge/Graphics-OpenGL%20%2B%20FreeGLUT-green?style=for-the-badge" />
   <img src="https://img.shields.io/badge/Platform-Windows-lightgrey?style=for-the-badge&logo=windows" />
   <img src="https://img.shields.io/badge/IDE-Code%3A%3ABlocks-orange?style=for-the-badge" />
-  <img src="https://img.shields.io/badge/Algorithms-DDA%20%7C%20Midpoint%20%7C%20Bresenham-purple?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/Algorithms-DDA%20%7C%20Midpoint%20%7C%20Bresenham%20%7C%20B%C3%A9zier%20%7C%20Cohen--Sutherland-purple?style=for-the-badge" />
   <img src="https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge" />
 </p>
 
 <h1 align="center">🐦 Flappy Bird — OpenGL Computer Graphics Project</h1>
 
 <p align="center">
-  <b>A fully playable, visually rich Flappy Bird clone built entirely in C using OpenGL and FreeGLUT.</b><br/>
+  <b>A fully playable, visually rich Flappy Bird clone built entirely in C++ using OpenGL and FreeGLUT.</b><br/>
   Submitted as a <b>Computer Graphics Lab Project</b> demonstrating mastery of graphics algorithms,<br/>
-  2D transformations, primitives, animation, and real-time rendering — no game engines, no image assets, pure OpenGL code.
+  2D &amp; 3D transformations, primitives, animation, and real-time rendering — no game engines, no image assets, pure OpenGL code.
 </p>
 
 <p align="center">
   <a href="#-project-overview">Overview</a> &nbsp;|&nbsp;
   <a href="#-graphics-algorithms-implemented">Algorithms</a> &nbsp;|&nbsp;
   <a href="#-2d-transformations">Transformations</a> &nbsp;|&nbsp;
+  <a href="#-3d-rendering">3D Rendering</a> &nbsp;|&nbsp;
   <a href="#-primitives-used">Primitives</a> &nbsp;|&nbsp;
   <a href="#-ep-mapping">EP Mapping</a> &nbsp;|&nbsp;
   <a href="#-features">Features</a> &nbsp;|&nbsp;
@@ -30,18 +31,22 @@
 
 ## 📌 Project Overview
 
-This project is a complete **Flappy Bird clone** written from scratch in **C99** using **OpenGL** and **FreeGLUT**. Every single visual element — the bird, pipes, clouds, sky, city skyline, rain, lightning, stars, sun, moon, and all UI — is drawn programmatically using OpenGL drawing primitives. There are zero image files and zero external assets of any kind.
+This project is a complete **Flappy Bird clone** written from scratch in **C++17** using **OpenGL** and **FreeGLUT**. Every single visual element — the bird, pipes, clouds, sky, city skyline, rain, lightning, stars, sun, moon, 3D chick, 3D spinning coins, and all UI — is drawn programmatically using OpenGL drawing primitives. There are **zero image files** and **zero external assets** of any kind.
 
-The project was developed specifically to satisfy the **Computer Graphics Lab Project rubric** (40 marks), and goes beyond the minimum requirements by implementing **three** graphics line/circle algorithms, all **four** major 2D transformation types, an advanced **particle system**, a **reflection** effect, and **four dynamic weather environments**.
+The project was developed specifically to satisfy the **Computer Graphics Lab Project rubric (Week 6 Mini Project)**, and goes far beyond the minimum requirements by implementing **five** graphics algorithms, all **four** major 2D transformation types, full **3D perspective rendering** with `GL_LIGHTING`, an advanced **particle system**, a **reflection** effect, and **five dynamic weather environments**.
 
 ### What makes this project stand out
 
 | Requirement | Minimum | This Project |
 |-------------|---------|-------------|
-| Graphics Algorithms | 2 | **3** (DDA + Midpoint Circle + Bresenham) |
-| Transformations | Translation + one more | **All 4** (Translation, Rotation, Scaling, Reflection) |
-| Animated Objects | 1 | **7+** (bird, pipes, clouds, rain, sun rays, particles, lightning) |
+| Language | C or C++ | **C++17** |
+| Graphics Algorithms | 2 | **5** (DDA + Midpoint Circle + Bresenham + Bézier + Cohen-Sutherland) |
+| 2D Transformations | Translation + one more | **All 4** (Translation, Rotation, Scaling, Reflection) |
+| 3D Transformation | Basic | **Full 3D** — gluPerspective + GL_LIGHTING chick bird + 3D spinning coin |
+| Animated Objects | 1 | **10+** (bird, pipes, clouds, rain, snow, sun rays, particles, lightning, shooting stars, coins) |
 | Primitives | Points, Lines, Polygons, Circles | **All** — used meaningfully in every scene layer |
+| Sound | Optional | **7 programmatic sounds** (no .wav files, pure PCM synthesis) |
+| Weather Modes | — | **5 modes** (Day, Sunny, Rain, Night, Snow) |
 | Theme | Any real-world theme | **Interactive game** — the most complex category |
 
 ---
@@ -61,7 +66,7 @@ The project was developed specifically to satisfy the **Computer Graphics Lab Pr
 
 ## 🔬 Graphics Algorithms Implemented
 
-This is the most important technical section. I manually implemented **three rasterisation algorithms** from scratch — no OpenGL line-drawing shortcuts were used for these.
+This is the most important technical section. I manually implemented **five rasterisation and clipping algorithms** from scratch — no OpenGL line-drawing shortcuts were used for these.
 
 ---
 
@@ -82,8 +87,8 @@ for i in 0..steps:
     y += yInc
 ```
 
-**My implementation:**
-```c
+**My implementation (C++):**
+```cpp
 static void ddaLine(float x1, float y1, float x2, float y2) {
     float dx    = x2 - x1;
     float dy    = y2 - y1;
@@ -102,20 +107,14 @@ static void ddaLine(float x1, float y1, float x2, float y2) {
 }
 ```
 
-**Where and why I used it:**
-I used DDA to draw the **outline border of every pipe** (both body and cap). Each pipe has four edges drawn as four DDA line calls via `ddaOutlineRect()`. This is visible every single frame during gameplay — every green pipe border you see is rasterised by my DDA implementation using `GL_POINTS`.
-
-I chose DDA for pipe outlines because:
-1. Pipes have edges at all angles (the cap extends wider than the body, creating non-trivial corners)
-2. DDA handles arbitrary slopes cleanly with floating-point increments
-3. It runs every frame, making it a genuinely active part of the rendering pipeline
+**Where used:** Draws the **4-edge outline of every pipe body and cap** via `ddaOutlineRect()`. Visible every single frame during gameplay.
 
 ---
 
 ### Algorithm 2 — Midpoint Circle (Bresenham's Circle Algorithm)
 
 **What it is:**
-The Midpoint Circle algorithm plots a circle of radius `r` by starting at `(0, r)` and using an integer decision variable `d = 1 − r` to choose between moving East `(x++)` or South-East `(x++, y--)` at each step. It exploits 8-fold symmetry so only one octant needs computation — all 8 symmetric points are plotted simultaneously.
+The Midpoint Circle algorithm plots a circle of radius `r` by starting at `(0, r)` and using an integer decision variable `d = 1 − r` to choose between moving East `(x++)` or South-East `(x++, y--)` at each step. It exploits **8-fold symmetry** so only one octant needs computation.
 
 **Mathematical foundation:**
 ```
@@ -123,15 +122,15 @@ d = 1 − r
 while x ≤ y:
     plot 8 symmetric points
     if d < 0:
-        d += 2x + 3        // midpoint is inside circle → move East
+        d += 2x + 3        // midpoint inside circle → move East
     else:
-        d += 2(x−y) + 5   // midpoint is outside circle → move South-East
+        d += 2(x−y) + 5   // midpoint outside circle → move South-East
         y−−
     x++
 ```
 
-**My implementation:**
-```c
+**My implementation (C++):**
+```cpp
 static void midpointCircle(float cx, float cy, int r) {
     int x = 0, y = r;
     int d = 1 - r;
@@ -150,13 +149,7 @@ static void midpointCircle(float cx, float cy, int r) {
 }
 ```
 
-**Where and why I used it:**
-I used Midpoint Circle to draw the **bird's circular body outline** — the dark orange ring that frames the bird every frame. I also reuse the same function inside `drawBirdReflection()` to draw the reflection's outline.
-
-I chose Midpoint Circle for the bird because:
-1. The bird's body is a circle — this is the most natural application
-2. The algorithm uses only integer arithmetic inside the decision logic, making it efficient
-3. It runs every frame in a transformed coordinate space (after `glRotatef` for tilt), demonstrating that algorithm output integrates correctly with OpenGL's matrix pipeline
+**Where used:** Draws the **bird's circular body outline** every frame, and the **bird reflection outline** in the puddle.
 
 ---
 
@@ -175,8 +168,8 @@ loop:
     if e2 <  dx: err += dx;  y1 += sy
 ```
 
-**My implementation:**
-```c
+**My implementation (C++):**
+```cpp
 static void bresenhamLine(int x1, int y1, int x2, int y2) {
     int dx = abs(x2-x1), dy = abs(y2-y1);
     int sx = (x1 < x2) ? 1 : -1;
@@ -194,25 +187,68 @@ static void bresenhamLine(int x1, int y1, int x2, int y2) {
 }
 ```
 
-**Where and why I used it:**
-I used Bresenham to draw the **lightning bolt** in Rain weather mode. Each bolt is made of 8 diagonal segments connecting points at different angles — exactly the kind of arbitrary-slope lines where Bresenham excels. Two passes are drawn: a thick outer glow pass (`glPointSize(6.5)`) and a thin bright inner core pass (`glPointSize(2.5)`), creating the classic jagged lightning appearance.
+**Where used:** Draws the **lightning bolt** in Rain weather mode. Two passes (glow + core) create the classic jagged lightning effect.
 
-I chose Bresenham for lightning because:
-1. Lightning segments have diagonal, non-trivial slopes — a perfect showcase for a line algorithm
-2. The integer-only arithmetic makes it the fastest of the three algorithms
-3. Drawing it twice (glow + core) using `GL_POINTS` naturally produces a thick glowing effect
+---
+
+### Algorithm 4 — Cubic Bézier Curve
+
+**What it is:**
+Interpolates smoothly between 4 control points P₀, P₁, P₂, P₃ using the parametric cubic formula. As `t` goes from 0 to 1, the curve sweeps continuously from P₀ to P₃.
+
+**Mathematical foundation:**
+```
+B(t) = (1−t)³P₀ + 3(1−t)²t·P₁ + 3(1−t)t²·P₂ + t³P₃
+```
+
+**My implementation (C++):**
+```cpp
+static void bezierPoint(float t, float *px, float *py,
+    float p0x, float p0y, float p1x, float p1y,
+    float p2x, float p2y, float p3x, float p3y)
+{
+    float u = 1.0f - t;
+    *px = u*u*u*p0x + 3*u*u*t*p1x + 3*u*t*t*p2x + t*t*t*p3x;
+    *py = u*u*u*p0y + 3*u*u*t*p1y + 3*u*t*t*p2y + t*t*t*p3y;
+}
+```
+
+**Where used:** Draws the **animated water wave** on the ground. The control points oscillate with `sin(frame)` to create a flowing river-like animation.
+
+---
+
+### Algorithm 5 — Cohen-Sutherland Line Clipping
+
+**What it is:**
+Clips a line segment against a rectangular clipping window using outcodes (bit flags: LEFT=1, RIGHT=2, BOTTOM=4, TOP=8). Repeatedly tests endpoint pairs and clips to the window boundary until the segment is fully inside or fully rejected.
+
+**Mathematical foundation:**
+```
+Assign outcode to each endpoint based on region
+while not (trivially accept or trivially reject):
+    clip outside endpoint to window boundary
+    recompute outcode
+```
+
+**My implementation (C++):**
+```cpp
+static int cohenSutherland(float *x1, float *y1, float *x2, float *y2,
+                           float xmin, float xmax, float ymin, float ymax);
+```
+
+**Where used:** **Clips every rain drop** against the ground boundary before drawing. Rain drops that would extend into the ground are cleanly clipped — demonstrates real-time line clipping every frame.
 
 ---
 
 ### Algorithm Comparison Summary
 
-| Property | DDA | Midpoint Circle | Bresenham |
-|----------|-----|-----------------|-----------|
-| Arithmetic | Floating-point | Integer | Integer |
-| Draws | Straight lines | Circles | Straight lines |
-| Applied to | Pipe outlines | Bird body outline | Lightning bolt |
-| Visible every frame? | Yes (all states) | Yes (all states) | Rain mode only |
-| GL Primitive used | `GL_POINTS` | `GL_POINTS` | `GL_POINTS` |
+| Property | DDA | Midpoint Circle | Bresenham | Bézier | Cohen-Sutherland |
+|----------|-----|-----------------|-----------|--------|-----------------|
+| Arithmetic | Float | Integer | Integer | Float | Float |
+| Draws | Lines | Circles | Lines | Curves | Clipped lines |
+| Applied to | Pipe outlines | Bird outline | Lightning | Water wave | Rain clipping |
+| Visible every frame? | Yes | Yes | Rain mode | Yes | Rain mode |
+| GL Primitive | `GL_POINTS` | `GL_POINTS` | `GL_POINTS` | `GL_LINE_STRIP` | `GL_LINES` |
 
 ---
 
@@ -232,7 +268,7 @@ y' = y + ty
 
 **Where I used it:**
 - **Bird vertical movement** — `glTranslatef(BIRD_X, g_bird.y, 0)` positions the bird at its current Y position every frame
-- **Pipe scrolling** — each pipe's X position decreases by `pipeSpeed` per frame, translating the entire set leftward
+- **Pipe scrolling** — each pipe's X position decreases by `pipeSpeed` per frame
 - **Cloud parallax** — each cloud translates at a different speed depending on its layer (0.35 or 0.80 px/frame)
 - **Reflection positioning** — `glTranslatef(BIRD_X, reflY, 0)` places the mirrored bird at the correct reflected Y
 
@@ -247,7 +283,7 @@ y' = x·sin(θ) + y·cos(θ)
 ```
 
 **Where I used it:**
-- **Bird tilt** — `glRotatef(g_bird.angle, 0, 0, 1)` rotates the bird up to +25° on flap and down to −55° in freefall. The tilt angle is smoothly interpolated toward its target each frame using `lerp`
+- **Bird tilt** — `glRotatef(g_bird.angle, 0, 0, 1)` rotates the bird up to +25° on flap and down to −55° in freefall. Angle is smoothly interpolated using `lerp`
 - **Sun ray spin** — each of the 14 sun rays rotates continuously: `a = PI2*i/14 + g_frame*0.008f`
 - **Title bird sway** — `g_bird.angle = 5 * sin(g_frame * 0.05)` makes the title bird rock gently
 
@@ -262,12 +298,12 @@ y' = y · sy
 ```
 
 **Where I used it:**
-- **Title bird pulse** — `glScalef(titleScale, titleScale, 1)` where `titleScale = 1 + 0.12·sin(frame·0.07)` makes the bird breathe in and out on the title screen
-- **Ellipse drawing** — `glScalef(rx, ry, 1)` inside `fillEllipse()` draws all clouds, wing shapes, belly highlights, and reflection distortions
-- **Reflection Y-scale** — `glScalef(1, -1, 1)` is used as part of the reflection transform (see below)
+- **Title bird pulse** — `glScalef(titleScale, titleScale, 1)` where `titleScale = 1 + 0.12·sin(frame·0.07)` makes the bird breathe in and out
+- **Ellipse drawing** — `glScalef(rx, ry, 1)` inside `fillEllipse()` draws all clouds, wing shapes, belly highlights
+- **Reflection Y-scale** — `glScalef(1, -1, 1)` is used as part of the reflection transform
 
-```c
-/* Title bird scaling — explicit scaling transform */
+```cpp
+/* Title bird scaling — uniform scale transform */
 float titleScale = 1.0f + 0.12f * sinf(g_frame * 0.07f);
 glPushMatrix();
     glTranslatef(BIRD_X, tY - 22.f, 0.f);
@@ -287,19 +323,16 @@ y' = 2 · grassY − y     (reflection about the line y = grassY)
 ```
 
 **Where I used it:**
-I implemented a **bird puddle reflection** that appears in the ground strip when the bird flies close to the ground. The reflection is drawn as a faded, semi-transparent copy of the bird, flipped upside-down — like a mirror image in a puddle.
+I implemented a **bird puddle reflection** that appears in the ground strip when the bird flies close to the ground — like a mirror image in a rain puddle.
 
-**Implementation:**
-```c
+```cpp
 static void drawBirdReflection(void) {
-    float grassY = GROUND_Y + GROUND_H * GRASS_H_RATIO;  // reflection axis
-    float reflY  = 2.f * grassY - g_bird.y;              // reflected Y coord
-
+    float grassY = GROUND_Y + GROUND_H * GRASS_H_RATIO;
+    float reflY  = 2.f * grassY - g_bird.y;
     glPushMatrix();
-        glTranslatef(BIRD_X, reflY, 0.f);    // Step 1: move to reflected position
+        glTranslatef(BIRD_X, reflY, 0.f);   // Step 1: move to reflected position
         glRotatef(-g_bird.angle, 0,0,1);     // Step 2: flip rotation sign
         glScalef(1.0f, -1.0f, 1.0f);        // Step 3: mirror about Y axis
-        col4(255,195,50, 45);
         fillCircle(0, 0, BIRD_RADIUS, 20);   // faded body
         midpointCircle(0, 0, BIRD_RADIUS);   // faded outline
     glPopMatrix();
@@ -317,16 +350,45 @@ static void drawBirdReflection(void) {
 
 ---
 
+## 🌐 3D Rendering
+
+The project uses **full 3D perspective rendering** via `gluPerspective` + `gluLookAt` + `GL_LIGHTING` for two key elements:
+
+### 3D White Fluffy Chick Bird
+
+The bird is rendered as a **fully lit 3D chick** using:
+- `gluPerspective(60°)` — perspective projection
+- `gluLookAt` — camera positioned at z=5, looking at origin
+- `GL_LIGHT0` — directional light with diffuse, ambient, and specular components
+- `glMaterialfv` — per-part material properties (white body, golden beak, dark eyes)
+- `glutSolidSphere` — body, cheek puffs, eyes, irises, specular highlights
+- `glutSolidCone` — golden beak
+- `glutSolidCube` — orange legs and feet
+- `glRotatef` — Z-axis tilt based on velocity (matched to 2D angle)
+
+The viewport is temporarily switched to a small 3D sub-viewport using `begin3D()`/`end3D()` helpers, then restored to the 2D ortho projection for the rest of the scene.
+
+### 3D Spinning Coin
+
+Each pipe has a **3D gold coin** rendered with:
+- Same `gluPerspective` + `GL_LIGHTING` setup
+- `glutSolidSphere` flattened by `glScalef(1, 1, 0.22f)` — creates the flat coin disc
+- Y-axis rotation `glRotatef(spinAngle, 0, 1, 0)` — creates the spinning illusion
+- Gold material (`GL_DIFFUSE`, `GL_SPECULAR`, `GL_SHININESS`) for realistic metallic look
+- Inner darker ring rendered as a second sphere at smaller scale
+
+---
+
 ## 🔷 Primitives Used
 
 All four required OpenGL primitive types are used meaningfully throughout the scene.
 
 | Primitive | OpenGL Constant | Where Used |
 |-----------|-----------------|------------|
-| **Points** | `GL_POINTS` | DDA pipe outlines, Midpoint Circle bird outline, Bresenham lightning, score particle sparkles, night stars |
-| **Lines** | `GL_LINES` | Sun rays, close-button X cross, rain drop streaks (`GL_LINES`), star cross-arms |
-| **Polygons / Quads** | `GL_QUADS`, `GL_TRIANGLES` | Sky background, pipe bodies and caps, ground layers, buildings, bird beak |
-| **Circles** | `GL_TRIANGLE_FAN` | Bird body fill, sun body, moon body, cloud ellipse blobs, pipe cap corners via `fillRoundRect` |
+| **Points** | `GL_POINTS` | DDA pipe outlines, Midpoint Circle bird outline, Bresenham lightning, score particle sparkles, night stars, snowflakes |
+| **Lines** | `GL_LINES`, `GL_LINE_STRIP`, `GL_LINE_LOOP` | Sun rays, close-button X cross, rain drop streaks, star cross-arms, Bézier water wave, rainbow arcs, medal ring |
+| **Polygons / Quads** | `GL_QUADS`, `GL_TRIANGLE_FAN` | Sky background gradient, pipe bodies and caps, ground layers, buildings, clouds, all filled circles/ellipses |
+| **3D Solids** | `glutSolidSphere`, `glutSolidCone`, `glutSolidCube` | 3D chick body, eyes, beak, legs, 3D spinning coin |
 
 > Every primitive listed above is active in at least one visible game state and contributes meaningfully to the visual output — not just placed as a token demonstration.
 
@@ -340,46 +402,51 @@ All four required OpenGL primitive types are used meaningfully throughout the sc
 - **Smooth bird tilt** — angle linearly interpolates toward target (`lerp`) every frame
 - **3-frame wing animation** — up / mid / down cycling at configurable rate
 - **Progressive difficulty** — pipe speed increases `+0.002 px/frame` indefinitely
+- **3 Difficulty Levels** — Easy / Normal / Hard (affects pipe gap and speed)
 
-### Pipe System
-- 3 pipe pairs simultaneously on screen
-- Random gap centre height on each recycle
-- Pipe cap extends wider than body (capped end detail)
-- DDA-drawn dark outline on body and cap edges
+### Pipe & Coin System
+- 3 pipe pairs simultaneously on screen with random gap heights
+- Pipe cap extends wider than body (capped end detail, DDA-outlined)
+- Each pipe has a **3D spinning gold coin** in the gap — collect for bonus points
+- Coin collection popup `+5` animation on screen
 
 ### Collision & Scoring
 - Circle vs. AABB collision test (slightly shrunk hitbox for fairness)
 - Ground and ceiling boundary checks
 - Score increments on passing each pipe pair
 - **Score sparkle particles** — 20 golden `GL_POINTS` burst outward on every score
-- Session high score persisted in memory
+- Coin score tracked separately, shown on HUD in gold
+- **Medal system** on Game Over — Bronze / Silver / Gold / Platinum based on score
+- High score persisted to `highscore.txt`
 
-### 4 Dynamic Weather Modes
+### 5 Dynamic Weather Modes
 
 | Mode | Sky Gradient | Special Elements | Pipe Tint |
 |------|-------------|------------------|-----------|
 | **Day** | Blue gradient | Animated sun + 14 rotating rays | Normal green |
-| **Sunny** | Warm gold gradient | Larger sun, warm cloud tones | Slightly warmer |
+| **Sunny** | Warm gold gradient | Larger sun, rainbow, warm cloud tones | Slightly warmer |
 | **Rain** | Dark grey overcast | 220 rain drops, Bresenham lightning, fog layers | Darker |
-| **Night** | Deep navy | 110 twinkling stars, crescent moon with craters | Dimmed |
+| **Night** | Deep navy | 110 twinkling stars, crescent moon, shooting stars | Dimmed |
+| **Snow** | Pale white-blue | 180 falling snowflakes, snow-capped pipes, icy trees | Cold tint |
 
 All scene elements adapt — pipe colour, grass shade, building brightness, window glow colour, cloud transparency — based on the active `WeatherTheme` struct.
 
 ### Weather Selector
-- Interactive clickable buttons on **Title Screen**
-- Same selector also appears on **Game Over Screen** so players can choose their next theme before restarting
+- Interactive clickable buttons on **Title Screen** and **Game Over Screen**
 - Hover effects + glow border on selected button
-- Animated weather icons inside each button (sun rays spin, rain drops move)
+- Animated weather icons inside each button (sun rays spin, rain drops move, snowflake crystals)
+- Weather description text shown below selector
 
 ### Interactive UI
-- **Title screen** — animated logo, bobbing + scaling bird, pulsing start prompt
-- **Game Over screen** — score panel + weather selector for next round
+- **Title screen** — animated logo, bobbing + scaling 3D chick, pulsing start prompt
+- **Game Over screen** — score panel, coin score, medal, weather selector for next round
 - **Pause screen** — dim overlay with resume instruction
 - **Close button** — red ✕ in top-right corner, works in all game states
 - **Weather name toast** — fading announcement on weather change
+- **Loading arc** — circular progress indicator before Play Again button appears
 
-### Audio (Programmatic)
-All sounds are **generated in memory** as 16-bit PCM WAV data — no `.wav` files needed. Multi-segment frequency sweeps with attack/release envelopes create:
+### Audio (Programmatic — No .wav Files)
+All sounds are **generated in memory** as 16-bit PCM WAV data using frequency sweeps with attack/release envelopes:
 
 | Sound | Effect | Trigger |
 |-------|--------|---------|
@@ -389,6 +456,7 @@ All sounds are **generated in memory** as 16-bit PCM WAV data — no `.wav` file
 | Click | Sharp button press | UI buttons |
 | Hover | Soft tick | Button hover |
 | Weather | Rising arpeggio | Weather change |
+| Coin | Bright ascending ting | Coin collected |
 
 ### Visual Polish
 | Effect | Description |
@@ -396,10 +464,15 @@ All sounds are **generated in memory** as 16-bit PCM WAV data — no `.wav` file
 | Screen shake | 15-frame camera offset on death |
 | Death flash | White overlay fade on collision |
 | Weather flash | Brief white flash on theme change |
+| Shear transform | Bird shears sideways on game over |
 | Parallax clouds | 2-layer cloud scroll (0.35× and 0.80×) |
 | Scrolling ground | Grass tile pattern synced to pipe speed |
+| Parallax mountains | 3-layer mountain silhouettes |
+| Trees | Scrolling animated trees (snow-capped in Snow mode) |
+| Rainbow | Appears in Sunny mode after rain |
 | Rain puddles | Ellipse puddles in ground strip (Rain mode) |
 | Star twinkle | Alpha modulated by `sin(frame + phase)` |
+| Shooting stars | Random streaks across Night sky |
 | City silhouette | 14 procedural buildings, lit windows per weather |
 | Aspect ratio lock | Pillarbox / letterbox viewport for any window size |
 
@@ -407,65 +480,83 @@ All sounds are **generated in memory** as 16-bit PCM WAV data — no `.wav` file
 
 ## 📐 Code Architecture
 
-The entire game lives in a single file `flappy_bird.c` (~1970 lines) structured into clearly labelled sections.
+The entire game lives in a single file `flappy_bird.cpp` (~2800 lines) structured into clearly labelled sections.
 
 ```
-flappy_bird.c
+flappy_bird.cpp
 │
 ├── Constants & Defines        Window size, physics, pipe, weather, sound IDs
-├── Enums & Structs            GameState, WeatherMode, Bird, Pipe, Cloud, Particle...
+├── Enums & Structs             GameState, WeatherMode, Difficulty, Bird, Pipe, Cloud, Particle...
 ├── Globals                    All game state variables
 ├── Utility Functions          lerpf, clampf, randf, isInRect, screenToWorld
 │
-├── ── ALGORITHMS ─────────────────────────────────────────────────────
-│   ├── ddaLine()              DDA Line rasteriser
+├── ── ALGORITHMS ─────────────────────────────────────────────────────────
+│   ├── ddaLine()              DDA Line rasteriser (Algorithm 1)
 │   ├── ddaOutlineRect()       4-edge DDA rectangle outline
-│   ├── midpointCircle()       8-octant Midpoint Circle rasteriser
-│   └── bresenhamLine()        Integer Bresenham line rasteriser
+│   ├── midpointCircle()       8-octant Midpoint Circle rasteriser (Algorithm 2)
+│   ├── bresenhamLine()        Integer Bresenham line rasteriser (Algorithm 3)
+│   ├── bezierPoint()          Cubic Bézier point evaluator (Algorithm 4)
+│   ├── drawBezierWave()       Animated ground water wave
+│   └── cohenSutherland()      Line clipping against rectangle (Algorithm 5)
 │
 ├── Drawing Primitives         fillRect, outlineRect, fillRoundRect,
 │                              fillCircle, fillEllipse
 ├── Text Helpers               bitmapText, strokeText, strokeWidth
 ├── Sound System               buildWav (PCM generator), playSound, initSounds
 │
-├── ── DRAW FUNCTIONS ─────────────────────────────────────────────────
+├── ── 3D RENDERING ──────────────────────────────────────────────────────
+│   ├── begin3D() / end3D()    Perspective viewport switcher
+│   ├── setupChickLight()      GL_LIGHT0 setup for 3D bird
+│   ├── setMat()               Per-part material properties
+│   ├── drawChickGeometry()    Full 3D chick (sphere+cone+cube parts)
+│   ├── drawBird()             3D bird + 2D Midpoint Circle overlay
+│   ├── drawSingleCoin()       3D spinning gold coin per pipe
+│   └── drawCoins()            Renders all active coins
+│
+├── ── DRAW FUNCTIONS ────────────────────────────────────────────────────
 │   ├── drawBackground()       Weather-aware sky gradient quad
 │   ├── drawSun()              Circle body + GL_LINES rotating rays
 │   ├── drawMoon()             Circle + crescent cutout + craters
 │   ├── drawStars()            GL_POINTS + GL_LINES cross-arms (Night)
-│   ├── drawRain()             GL_LINES angled streaks (Rain)
+│   ├── drawShootingStars()    Fading streaks across Night sky
+│   ├── drawRain()             GL_LINES angled streaks (Rain, Cohen-Sutherland clipped)
 │   ├── drawLightning()        Bresenham zigzag segments (Rain)
-│   ├── drawFog()              Translucent overlay bands (Rain)
+│   ├── drawFog()              Translucent overlay bands (Rain/Snow)
+│   ├── drawSnow()             GL_POINTS snowflakes (Snow)
 │   ├── drawCloud()            8-ellipse blob with shadow/highlight
-│   ├── drawClouds()           Renders all 7 cloud instances
+│   ├── drawMountains()        3-layer parallax mountain silhouettes
+│   ├── drawTrees()            Scrolling trees with snow-cap variant
+│   ├── drawRainbow()          GL_LINE_STRIP rainbow (Sunny)
 │   ├── drawCitySilhouette()   14 procedural buildings + windows
-│   ├── drawGround()           Dirt/grass layers, puddles, pebbles
-│   ├── drawBird()             Body (fillCircle) + midpointCircle outline
-│   │                          + wing (ellipse) + eye + beak (triangle)
+│   ├── drawGround()           Dirt/grass layers, Bézier wave, puddles
 │   ├── drawBirdReflection()   Y-reflection transform + faded bird
 │   ├── drawParticles()        GL_POINTS score sparkle burst
 │   ├── drawSinglePipe()       Filled body + highlights + DDA outline
 │   ├── drawPipes()            Renders all 3 pipe pairs
-│   ├── drawHUD()              Score display + high score + hint
-│   ├── drawWeatherSelector()  4 interactive weather theme buttons
+│   ├── drawHUD()              Score, coins, high score, difficulty label
+│   ├── drawWeatherSelector()  5 interactive weather theme buttons
 │   ├── drawWeatherIcon()      Animated mini-icon per weather button
-│   ├── drawTitleScreen()      Logo + bird + selector + start prompt
+│   ├── drawDifficultySelector() Easy / Normal / Hard buttons
+│   ├── drawTitleScreen()      Logo + 3D bird + selector + start prompt
 │   ├── drawPlayAgainButton()  Loading arc → clickable green button
-│   ├── drawGameOverScreen()   Score panel + weather selector
+│   ├── drawMedal()            Bronze / Silver / Gold / Platinum medals
+│   ├── drawGameOverScreen()   Score panel + 3D "GAME OVER" text
 │   ├── drawPauseScreen()      Dim overlay
 │   ├── drawWeatherName()      Fading weather toast
 │   └── drawCloseButton()      Red ✕ quit button (top-right)
 │
-├── ── PARTICLE SYSTEM ────────────────────────────────────────────────
+├── ── PARTICLE SYSTEM ───────────────────────────────────────────────────
 │   ├── triggerParticles()     Spawn 20 radial sparkles on score
 │   └── updateParticles()      Physics step (gravity + drag + fade)
 │
-├── ── UPDATE FUNCTIONS ───────────────────────────────────────────────
+├── ── UPDATE FUNCTIONS ──────────────────────────────────────────────────
 │   ├── updateBird()           Gravity, velocity clamp, tilt lerp, wing
 │   ├── updatePipes()          Scroll, recycle, score detection
 │   ├── updateParticles()      Advance particle physics each frame
 │   ├── updateClouds()         Scroll and wrap cloud positions
 │   ├── updateRainDrops()      Move and recycle rain particles
+│   ├── updateSnow()           Move and recycle snowflakes
+│   ├── updateShootingStars()  Random spawn and movement of shooting stars
 │   ├── updateWeather()        Auto-cycle timer, lightning trigger
 │   └── updateShake()          Decay screen-shake offset
 │
@@ -475,23 +566,24 @@ flappy_bird.c
 ├── doFlap()                   Unified flap/start/restart handler
 ├── keyboardInput()            Space, W, P, R, ESC
 ├── specialKeys()              F11 fullscreen toggle
-├── mouseInput()               Click → close, weather, flap, play again
-├── passiveMotion()            Hover detection (weather, play again, close)
+├── mouseInput()               Click → close, weather, difficulty, flap, play again
+├── passiveMotion()            Hover detection (weather, difficulty, play again, close)
 ├── reshape()                  Pillarbox/letterbox viewport calculation
 └── main()                     GLUT init + callbacks + game loop start
 ```
 
 ### Physics Constants
 
-```c
+```cpp
 #define GRAVITY           -0.45f   // downward acceleration per frame
 #define FLAP_VEL          10.0f    // upward velocity on flap
 #define MAX_FALL_VEL     -13.0f    // terminal velocity cap
-#define PIPE_GAP         190.0f    // vertical gap (larger = easier)
+#define PIPE_GAP         190.0f    // vertical gap (Normal difficulty)
 #define PIPE_SPACING     290.0f    // horizontal gap between pairs
 #define PIPE_BASE_SPEED    2.7f    // initial scroll speed (px/frame)
 #define PIPE_SPEED_INC     0.002f  // speed increase per frame
 #define WEATHER_CYCLE_FRAMES 1800  // frames between auto weather change (~30s)
+#define GAMEOVER_DELAY      90     // frames before Play Again appears (1.5s)
 ```
 
 ### Game State Machine
@@ -523,21 +615,19 @@ flappy_bird.c
 
 **How I addressed EP1:**
 
-1. **Three manual algorithms** implemented from first principles — no shortcuts:
-   - DDA Line: incremental floating-point rasteriser for pipe outlines
-   - Midpoint Circle: integer decision-variable circle scanner for bird outline
-   - Bresenham Line: error-accumulation integer line drawer for lightning
+1. **Five manual algorithms** implemented from first principles:
+   - DDA Line, Midpoint Circle, Bresenham Line, Cubic Bézier, Cohen-Sutherland Clipping
 
 2. **All four 2D transformations** applied correctly:
-   - Translation for movement, Rotation for tilt and spin, Scaling for pulse animation, Reflection for puddle mirror
+   - Translation, Rotation, Scaling, Reflection
 
-3. **Advanced rendering concepts** beyond basic drawing:
-   - Alpha blending (`glEnable(GL_BLEND)`) for transparent overlays, rain, puddles, and star twinkle
-   - Double buffering (`GLUT_DOUBLE`) for tear-free 60 FPS animation
-   - Parametric circle generation using `cos/sin` for smooth fills
-   - 8-fold symmetry exploitation in the circle algorithm
+3. **Full 3D rendering** with perspective projection and lighting:
+   - `gluPerspective` + `gluLookAt` + `GL_LIGHTING` + `glMaterialfv`
 
-4. **Physics simulation** — gravity accumulation, velocity clamping, `lerp`-based angle smoothing
+4. **Advanced rendering concepts** beyond basic drawing:
+   - Alpha blending, double buffering, parametric circle generation, 8-fold symmetry exploitation
+
+5. **Physics simulation** — gravity accumulation, velocity clamping, `lerp`-based angle smoothing
 
 ---
 
@@ -547,22 +637,22 @@ flappy_bird.c
 
 **How I addressed EP3:**
 
-1. **Algorithmic analysis**: Each algorithm is documented with its decision variable, termination condition, and octant-symmetry analysis. The three algorithms are compared for arithmetic type (float vs integer), applicable shapes, and performance.
+1. **Algorithmic analysis**: Each of the 5 algorithms is documented with its decision variable, termination condition, and comparison of arithmetic types (float vs integer)
 
-2. **Transformation sequencing**: The reflection transform uses a precise three-step matrix sequence (translate → rotate → scale) that cannot be reordered. This was analysed carefully to produce a correct puddle mirror.
+2. **Transformation sequencing**: The reflection transform uses a precise three-step matrix sequence (translate → rotate → scale) that cannot be reordered
 
-3. **Object decomposition**: The bird is broken into 7 sub-components (body circle, Midpoint outline, wing ellipse, belly ellipse, eye white, iris, beak triangle) each drawn with appropriate primitives.
+3. **3D scene decomposition**: The 3D chick is broken into 9+ sub-parts (body, cheeks, left eye white, left iris, right eye white, right iris, beak, 2 legs, 2 feet) each with correct material properties
 
 4. **Scene layering order**: Objects must be drawn back-to-front (painter's algorithm):
    ```
-   Sky → Stars/Moon/Sun → Clouds → City → Pipes → Ground →
-   Reflection → Bird → HUD → Rain/Fog/Lightning → Particles → UI
+   Sky → Stars/Moon/Sun → Mountains → Clouds → Rainbow → City → Trees →
+   Pipes → Coins → Ground → Reflection → 3D Bird → HUD → Rain/Fog/Lightning/Snow →
+   Particles → UI → Close Button
    ```
-   Any deviation causes incorrect visual occlusion.
 
-5. **Particle physics**: Score sparkle particles use gravity (`vy -= 0.28`) and drag (`vx *= 0.97`) to produce realistic arc trajectories, with `life` fading their alpha from 1.0 to 0.
+5. **Particle physics**: Score sparkle particles use gravity (`vy -= 0.28`) and drag (`vx *= 0.97`) to produce realistic arc trajectories
 
-6. **Collision analysis**: A circle–AABB test was chosen over pixel-perfect collision because it provides consistent, forgiving gameplay and runs in O(n) with n = number of pipes.
+6. **Collision analysis**: A circle–AABB test runs in O(n) with n = number of pipes, providing fair and consistent gameplay
 
 ---
 
@@ -572,30 +662,31 @@ flappy_bird.c
 
 **How I addressed EP4:**
 
-1. **Integration of multiple techniques** — the scene combines rasterisation algorithms, transformation matrices, physics simulation, particle systems, procedural audio, and state-machine logic all working together in a single render loop.
+1. **Integration of multiple techniques** — the scene combines 5 rasterisation algorithms, 2D+3D transformation matrices, physics simulation, particle systems, procedural audio, and state-machine logic all working together in a single render loop
 
-2. **Real-time rendering constraints** — achieving 60 FPS requires every draw call to complete within ~16ms. Heavy elements (220 rain particles, DDA outlines for 6 pipe sides) were profiled and found to be well within budget.
+2. **Real-time rendering constraints** — achieving 60 FPS requires every draw call to complete within ~16ms. Heavy elements (220 rain particles, DDA outlines, 3D lighting calculations) were implemented efficiently
 
-3. **Coordinate system management** — GLUT mouse Y is top-down while OpenGL Y is bottom-up. `screenToWorld()` correctly converts between them for accurate button hit testing.
+3. **Coordinate system management** — GLUT mouse Y is top-down while OpenGL Y is bottom-up. `screenToWorld()` correctly converts between them for accurate button hit testing. The 3D sub-viewport requires careful coordinate remapping from world space to screen space
 
-4. **Weather theme system** — a `WeatherTheme` struct stores all colour parameters per mode. Interpolating these across drawing functions (sky, clouds, grass, building darkness, window colour) required careful analysis of which components need per-weather variation.
+4. **Weather theme system** — a `WeatherTheme` struct stores all colour parameters per mode. Every visual element queries this struct for correct per-weather colouring
 
-5. **Procedural sound** — generating WAV data in memory (44-byte header + 16-bit PCM samples) with frequency-sweep segments and attack/release envelopes demonstrates integration of signal processing with graphics.
+5. **Procedural sound** — generating WAV data in memory (44-byte header + 16-bit PCM samples) with frequency-sweep segments and attack/release envelopes
 
 ---
 
 ### EA1 & EA3 — Range of Resources and Complexity of Activities (16 Marks)
 
-**EA1 (Resources):** Used OpenGL 1.x API, FreeGLUT, Windows Multimedia API (WinMM), C99 standard library (math, stdlib, time, string), and Code::Blocks IDE with MinGW GCC 8.1.
+**EA1 (Resources):** Used OpenGL 1.x API, FreeGLUT, Windows Multimedia API (WinMM), C++17 standard library (math.h, stdlib.h, time.h, string.h), GLU library (gluPerspective, gluLookAt, gluOrtho2D), and Code::Blocks IDE with MinGW GCC 8.1.
 
 **EA3 (Complexity):** The project creates a dynamic, multi-object interactive scene with:
-- 7+ independently animated objects
+- 10+ independently animated objects
 - A 4-state game state machine
-- 4 weather environments with ~15 visual parameters each
+- 5 weather environments with ~18 visual parameters each
 - Real-time collision detection + response
+- 3D perspective rendering with GL_LIGHTING
 - An interactive UI with hover/click detection in all states
-- Programmatic PCM audio synthesis
-- All within a single 1970-line C file
+- Programmatic PCM audio synthesis (7 sounds)
+- All within a single 2800-line C++ file
 
 ---
 
@@ -608,7 +699,7 @@ flappy_bird.c
 | OS | Windows 7 / 10 / 11 |
 | IDE | Code::Blocks with MinGW bundled (`codeblocks-XX.XX-mingw-setup.exe`) |
 | Graphics Library | FreeGLUT for MinGW |
-| C Standard | C99 |
+| Language Standard | **C++17** |
 
 ---
 
@@ -647,8 +738,9 @@ Open FlappyBird.cbp → Press F9 (Build and Run)
 
 **Option B — Command Line**
 ```bash
-gcc flappy_bird.c -o flappy_bird.exe ^
-    -lopengl32 -lglu32 -lfreeglut -lwinmm -lm -std=c99
+# Using Code::Blocks MinGW g++
+"C:\Program Files\CodeBlocks\MinGW\bin\g++.exe" -std=c++17 flappy_bird.cpp ^
+    -o flappy_bird.exe -lopengl32 -lglu32 -lfreeglut -lwinmm
 flappy_bird.exe
 ```
 
@@ -668,7 +760,8 @@ flappy_bird.exe
 | `F11` | Toggle fullscreen |
 | `ESC` | Quit |
 | `✕ Button` | Red close button (top-right) — quit from any state |
-| Weather buttons | Click Day / Sunny / Rain / Night on Title or Game Over |
+| Weather buttons | Click Day / Sunny / Rain / Night / Snow on Title or Game Over |
+| Difficulty buttons | Click Easy / Normal / Hard on Title screen |
 
 ---
 
@@ -676,9 +769,11 @@ flappy_bird.exe
 
 ```
 flappybird/
-├── flappy_bird.c       Complete game source (~1970 lines, single file)
-├── FlappyBird.cbp      Code::Blocks project file (linker flags pre-set)
+├── flappy_bird.cpp     Complete game source (~2800 lines, C++17, single file)
+├── flappy_bird.c       Original C99 source (kept for reference)
+├── FlappyBird.cbp      Code::Blocks project file (g++ / c++17, linker flags pre-set)
 ├── freeglut.dll        FreeGLUT runtime DLL (required next to .exe)
+├── highscore.txt       Persistent high score storage
 ├── README.md           This file
 ├── LICENSE             MIT License
 ├── .gitignore          Excludes build output and binaries
@@ -702,13 +797,15 @@ flappybird/
 | Choppy animation | Build in **Release** mode (not Debug) |
 | Window appears black | Update your graphics card drivers |
 | Mouse clicks not registering correctly | Resize window with F11 to reset the viewport mapping |
+| C++ compile errors with system g++ | Use **Code::Blocks MinGW g++** at `C:\Program Files\CodeBlocks\MinGW\bin\g++.exe` |
+| `at_quick_exit` / `quick_exit` errors | Use C-style headers (`math.h` etc.) — already fixed in `flappy_bird.cpp` |
 
 ---
 
 ## 👤 Author
 
-**Labony Sur**
-Department of Computer Science and Engineering
+**Labony Sur**  
+Department of Computer Science and Engineering  
 Computer Graphics Laboratory — 2026
 
 - GitHub: [labonysur-cloud](https://github.com/labonysur-cloud)
@@ -723,7 +820,7 @@ This project is licensed under the **MIT License** — see the [LICENSE](LICENSE
 ---
 
 <p align="center">
-  Built with ❤️ using C99, OpenGL, and FreeGLUT &nbsp;|&nbsp; Computer Graphics Laboratory 2026
+  Built with ❤️ using <b>C++17</b>, OpenGL, and FreeGLUT &nbsp;|&nbsp; Computer Graphics Laboratory 2026
   <br/>
-  <i>Every pixel drawn by hand. Every algorithm implemented from scratch.</i>
+  <i>Every pixel drawn by hand. Every algorithm implemented from scratch. Zero image assets.</i>
 </p>
