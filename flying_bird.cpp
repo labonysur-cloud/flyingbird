@@ -295,9 +295,8 @@ static const int g_sfxDurFrames[SFX_COUNT] = {
     156, /* SFX_THUNDER1 */
     45, /* SFX_THUNDER2 */
 };
-static HWAVEOUT g_sfxOut[SFX_COUNT] = {0};
-static WAVEHDR  g_sfxHdr[SFX_COUNT] = {0};
-static long     g_sfxDataOff[SFX_COUNT] = {0};
+static int g_activeSfxId    = -1;
+static int g_activeSfxTicks =  0;
 
 /* ----------------------------------------------------------------
  * Rain ambient loop — uses waveOut so it plays independently of
@@ -731,20 +730,6 @@ static void buildWav(int id,
         }
     }
     g_sfxSize[id] = 44 + dataBytes;
-
-    WAVEFORMATEX wfx = {0};
-    wfx.wFormatTag      = WAVE_FORMAT_PCM;
-    wfx.nChannels       = 1;
-    wfx.nSamplesPerSec  = SFX_RATE;
-    wfx.wBitsPerSample  = 16;
-    wfx.nBlockAlign     = 2;
-    wfx.nAvgBytesPerSec = SFX_RATE * 2;
-
-    waveOutOpen(&g_sfxOut[id], WAVE_MAPPER, &wfx, 0, 0, CALLBACK_NULL);
-    memset(&g_sfxHdr[id], 0, sizeof(WAVEHDR));
-    g_sfxHdr[id].lpData         = (LPSTR)(g_sfxBuf[id] + 44);
-    g_sfxHdr[id].dwBufferLength = dataBytes;
-    waveOutPrepareHeader(g_sfxOut[id], &g_sfxHdr[id], sizeof(WAVEHDR));
 }
 
 static void loadWavToSfxBuf(int id, const char *filename) {
@@ -756,48 +741,18 @@ static void loadWavToSfxBuf(int id, const char *filename) {
     fseek(f, 0, SEEK_SET);
     if (size > SFX_BUF) size = SFX_BUF;
     fread(g_sfxBuf[id], 1, size, f);
+    g_sfxSize[id] = size;
     fclose(f);
-
-    long dataOff = 44, dataLen = size - 44, fmtOff = 12;
-    for (long i = 12; i < size - 8; ) {
-        if (g_sfxBuf[id][i] == 'd' && g_sfxBuf[id][i+1] == 'a' && 
-            g_sfxBuf[id][i+2] == 't' && g_sfxBuf[id][i+3] == 'a') {
-            dataLen = *(unsigned int*)(&g_sfxBuf[id][i+4]);
-            dataOff = i + 8;
-        }
-        if (g_sfxBuf[id][i] == 'f' && g_sfxBuf[id][i+1] == 'm' && 
-            g_sfxBuf[id][i+2] == 't' && g_sfxBuf[id][i+3] == ' ') {
-            fmtOff = i + 8;
-        }
-        long chunkSize = *(unsigned int*)(&g_sfxBuf[id][i+4]);
-        if (chunkSize < 0 || chunkSize > size) break;
-        i += 8 + chunkSize;
-    }
-
-    g_sfxDataOff[id] = dataOff;
-    g_sfxSize[id] = dataLen;
-
-    WAVEFORMATEX wfx = {0};
-    wfx.wFormatTag      = WAVE_FORMAT_PCM;
-    wfx.nChannels       = *(unsigned short*)(&g_sfxBuf[id][fmtOff + 2]);
-    wfx.nSamplesPerSec  = *(unsigned int*)(&g_sfxBuf[id][fmtOff + 4]);
-    wfx.wBitsPerSample  = *(unsigned short*)(&g_sfxBuf[id][fmtOff + 14]);
-    wfx.nBlockAlign     = wfx.nChannels * (wfx.wBitsPerSample / 8);
-    wfx.nAvgBytesPerSec = wfx.nSamplesPerSec * wfx.nBlockAlign;
-
-    waveOutOpen(&g_sfxOut[id], WAVE_MAPPER, &wfx, 0, 0, CALLBACK_NULL);
-    memset(&g_sfxHdr[id], 0, sizeof(WAVEHDR));
-    g_sfxHdr[id].lpData         = (LPSTR)(g_sfxBuf[id] + dataOff);
-    g_sfxHdr[id].dwBufferLength = dataLen;
-    waveOutPrepareHeader(g_sfxOut[id], &g_sfxHdr[id], sizeof(WAVEHDR));
 }
 
 static void playSound(int id) {
     if (id < 0 || id >= SFX_COUNT || g_sfxSize[id] == 0) return;
-    if (g_sfxOut[id]) {
-        waveOutReset(g_sfxOut[id]);
-        waveOutWrite(g_sfxOut[id], &g_sfxHdr[id], sizeof(WAVEHDR));
+    if (g_activeSfxTicks > 0 && g_activeSfxId >= 0) {
+        if (g_sfxPriority[id] < g_sfxPriority[g_activeSfxId]) return;
     }
+    PlaySound((LPCSTR)g_sfxBuf[id], NULL, SND_MEMORY | SND_ASYNC | SND_NODEFAULT);
+    g_activeSfxId    = id;
+    g_activeSfxTicks = g_sfxDurFrames[id];
 }
 
 
@@ -823,8 +778,9 @@ static void initSounds(void) {
     loadWavToSfxBuf(SFX_THUNDER1, "asset/sound/thunder-1.wav");
     loadWavToSfxBuf(SFX_THUNDER2, "asset/sound/thunder-2.wav");
     
-    /* Start home page ambient music using robust PlaySound loop */
-    PlaySound("asset/sound/home-page.wav", NULL, SND_FILENAME | SND_ASYNC | SND_LOOP | SND_NODEFAULT);
+    /* Initialize MCI background music */
+    mciSendStringA("open \"asset/sound/home-page.wav\" type waveaudio alias home", NULL, 0, NULL);
+    mciSendStringA("play home from 0", NULL, 0, NULL);
 
     /* ----------------------------------------------------------------
      * SFX_FLAP — Light, airy wing beat
@@ -996,7 +952,7 @@ static void resetGame(void) {
     g_hintTimer = 360;  /* show controls box for ~6 s at 60 fps */
     initBird(); initPipes();
     g_state = STATE_PLAYING;
-    PlaySound(NULL, 0, 0); /* Stop home page BGM */
+    mciSendStringA("stop home", NULL, 0, NULL); /* Stop home page BGM */
     playSound(SFX_START);
     updateWeatherAmbient(); /* Start ambient BGM */
 }
@@ -1061,11 +1017,15 @@ static void updateShake(void) {
  * ================================================================ */
 
 static void updateWeatherAmbient(void) {
-    if      (g_weather == WEATHER_RAIN)  PlaySound("asset/sound/rain.wav", NULL, SND_FILENAME | SND_ASYNC | SND_LOOP | SND_NODEFAULT);
-    else if (g_weather == WEATHER_NIGHT) PlaySound("asset/sound/night-crickets.wav", NULL, SND_FILENAME | SND_ASYNC | SND_LOOP | SND_NODEFAULT);
-    else if (g_weather == WEATHER_DAY)   PlaySound("asset/sound/day-birds.wav", NULL, SND_FILENAME | SND_ASYNC | SND_LOOP | SND_NODEFAULT);
-    else if (g_weather == WEATHER_SUNNY) PlaySound("asset/sound/morning-birds.wav", NULL, SND_FILENAME | SND_ASYNC | SND_LOOP | SND_NODEFAULT);
-    else if (g_weather == WEATHER_SNOW)  PlaySound(NULL, 0, 0);
+    mciSendStringA("close ambient", NULL, 0, NULL);
+    if      (g_weather == WEATHER_RAIN)  mciSendStringA("open \"asset/sound/rain.wav\" type waveaudio alias ambient", NULL, 0, NULL);
+    else if (g_weather == WEATHER_NIGHT) mciSendStringA("open \"asset/sound/night-crickets.wav\" type waveaudio alias ambient", NULL, 0, NULL);
+    else if (g_weather == WEATHER_DAY)   mciSendStringA("open \"asset/sound/day-birds.wav\" type waveaudio alias ambient", NULL, 0, NULL);
+    else if (g_weather == WEATHER_SUNNY) mciSendStringA("open \"asset/sound/morning-birds.wav\" type waveaudio alias ambient", NULL, 0, NULL);
+    
+    if (g_weather != WEATHER_SNOW) {
+        mciSendStringA("play ambient from 0", NULL, 0, NULL);
+    }
 }
 
 
@@ -2867,7 +2827,17 @@ static void updateRainDrops(void) {
 
 static void updateGame(void) {
     g_frame++;
+    if (g_activeSfxTicks > 0) g_activeSfxTicks--;
     updateWeather();
+
+    char buf[128] = {0};
+    if (g_state == STATE_TITLE) {
+        mciSendStringA("status home mode", buf, sizeof(buf), NULL);
+        if (strstr(buf, "stopped")) mciSendStringA("play home from 0", NULL, 0, NULL);
+    } else if (g_state == STATE_PLAYING || g_state == STATE_GAMEOVER) {
+        mciSendStringA("status ambient mode", buf, sizeof(buf), NULL);
+        if (strstr(buf, "stopped")) mciSendStringA("play ambient from 0", NULL, 0, NULL);
+    }
 
     if (g_state == STATE_TITLE) {
         updateClouds();
