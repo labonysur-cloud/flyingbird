@@ -724,20 +724,28 @@ static void buildWav(int id,
 }
 
 static void playSound(int id) {
-    if (id < 0 || id >= SFX_COUNT || g_sfxSize[id] == 0) return;
-    /* Priority gate: a lower-priority sound must not cut off a
-       higher-priority one that is still within its expected duration. */
+    if (id == SFX_FLAP) { mciSendStringA("play jump from 0", NULL, 0, NULL); return; }
+    if (id == SFX_COIN) { mciSendStringA("play coin from 0", NULL, 0, NULL); return; }
+    if (id == SFX_DIE)  { mciSendStringA("play over from 0", NULL, 0, NULL); return; }
+    
     if (g_activeSfxTicks > 0 && g_activeSfxId >= 0) {
         if (g_sfxPriority[id] < g_sfxPriority[g_activeSfxId]) return;
     }
-    PlaySound((LPCSTR)g_sfxBuf[id], NULL,
-              SND_MEMORY | SND_ASYNC | SND_NODEFAULT);
+    PlaySound((LPCSTR)g_sfxBuf[id], NULL, SND_MEMORY | SND_ASYNC | SND_NODEFAULT);
     g_activeSfxId    = id;
     g_activeSfxTicks = g_sfxDurFrames[id];
 }
 
 
 static void initSounds(void) {
+    mciSendStringA("open \"asset/sound/jump.wav\" type waveaudio alias jump", NULL, 0, NULL);
+    mciSendStringA("open \"asset/sound/collect-coin.wav\" type waveaudio alias coin", NULL, 0, NULL);
+    mciSendStringA("open \"asset/sound/game-over.wav\" type waveaudio alias over", NULL, 0, NULL);
+    mciSendStringA("open \"asset/sound/game-start.wav\" type waveaudio alias start", NULL, 0, NULL);
+    mciSendStringA("open \"asset/sound/home-page.wav\" type waveaudio alias home", NULL, 0, NULL);
+    
+    /* Play home page music initially */
+    mciSendStringA("play home repeat", NULL, 0, NULL);
 
     /* ----------------------------------------------------------------
      * SFX_FLAP — Light, airy wing beat
@@ -907,6 +915,8 @@ static void resetGame(void) {
     g_hintTimer = 360;  /* show controls box for ~6 s at 60 fps */
     initBird(); initPipes();
     g_state = STATE_PLAYING;
+    mciSendStringA("stop home", NULL, 0, NULL);
+    mciSendStringA("play start from 0", NULL, 0, NULL);
 }
 
 static void loadHighScore(void) {
