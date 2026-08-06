@@ -778,9 +778,9 @@ static void initSounds(void) {
     loadWavToSfxBuf(SFX_THUNDER1, "asset/sound/thunder-1.wav");
     loadWavToSfxBuf(SFX_THUNDER2, "asset/sound/thunder-2.wav");
     
-    /* Initialize MCI background music */
-    mciSendStringA("open \"asset/sound/home-page.wav\" type waveaudio alias home", NULL, 0, NULL);
-    mciSendStringA("play home from 0", NULL, 0, NULL);
+    /* Initialize MCI background music using mpegvideo which supports repeat */
+    mciSendStringA("open \"asset/sound/home-page.wav\" type mpegvideo alias home", NULL, 0, NULL);
+    mciSendStringA("play home repeat", NULL, 0, NULL);
 
     /* ----------------------------------------------------------------
      * SFX_FLAP — Light, airy wing beat
@@ -1018,13 +1018,13 @@ static void updateShake(void) {
 
 static void updateWeatherAmbient(void) {
     mciSendStringA("close ambient", NULL, 0, NULL);
-    if      (g_weather == WEATHER_RAIN)  mciSendStringA("open \"asset/sound/rain.wav\" type waveaudio alias ambient", NULL, 0, NULL);
-    else if (g_weather == WEATHER_NIGHT) mciSendStringA("open \"asset/sound/night-crickets.wav\" type waveaudio alias ambient", NULL, 0, NULL);
-    else if (g_weather == WEATHER_DAY)   mciSendStringA("open \"asset/sound/day-birds.wav\" type waveaudio alias ambient", NULL, 0, NULL);
-    else if (g_weather == WEATHER_SUNNY) mciSendStringA("open \"asset/sound/morning-birds.wav\" type waveaudio alias ambient", NULL, 0, NULL);
+    if      (g_weather == WEATHER_RAIN)  mciSendStringA("open \"asset/sound/rain.wav\" type mpegvideo alias ambient", NULL, 0, NULL);
+    else if (g_weather == WEATHER_NIGHT) mciSendStringA("open \"asset/sound/night-crickets.wav\" type mpegvideo alias ambient", NULL, 0, NULL);
+    else if (g_weather == WEATHER_DAY)   mciSendStringA("open \"asset/sound/day-birds.wav\" type mpegvideo alias ambient", NULL, 0, NULL);
+    else if (g_weather == WEATHER_SUNNY) mciSendStringA("open \"asset/sound/morning-birds.wav\" type mpegvideo alias ambient", NULL, 0, NULL);
     
     if (g_weather != WEATHER_SNOW) {
-        mciSendStringA("play ambient from 0", NULL, 0, NULL);
+        mciSendStringA("play ambient repeat", NULL, 0, NULL);
     }
 }
 
@@ -2829,15 +2829,6 @@ static void updateGame(void) {
     g_frame++;
     if (g_activeSfxTicks > 0) g_activeSfxTicks--;
     updateWeather();
-
-    char buf[128] = {0};
-    if (g_state == STATE_TITLE) {
-        mciSendStringA("status home mode", buf, sizeof(buf), NULL);
-        if (strstr(buf, "stopped")) mciSendStringA("play home from 0", NULL, 0, NULL);
-    } else if (g_state == STATE_PLAYING || g_state == STATE_GAMEOVER) {
-        mciSendStringA("status ambient mode", buf, sizeof(buf), NULL);
-        if (strstr(buf, "stopped")) mciSendStringA("play ambient from 0", NULL, 0, NULL);
-    }
 
     if (g_state == STATE_TITLE) {
         updateClouds();
