@@ -2866,8 +2866,6 @@ static void updateRainDrops(void) {
 
 static void updateGame(void) {
     g_frame++;
-    /* Tick down the active-sound protection window each frame */
-    if (g_activeSfxTicks > 0) g_activeSfxTicks--;
     updateWeather();
 
     if (g_state == STATE_TITLE) {
