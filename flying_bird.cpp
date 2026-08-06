@@ -2268,11 +2268,41 @@ static void drawDifficultySelector(void) {
 }
 
 static void drawWeatherSelector(void) {
-    /* Label above buttons */
-    col(255, 255, 255);
-    const char *label = "Choose your weather:";
-    float lw = strokeWidth(label, 0.075f);
-    strokeText(WORLD_W / 2.f - lw / 2.f, WBTN_Y + WBTN_H + 14.f, 0.075f, label);
+    /* ── "Choose your weather" label box ──────────────────────── */
+    {
+        const char *label = "CHOOSE  YOUR  WEATHER";
+        float lw   = strokeWidth(label, 0.068f);
+        float boxW = lw + 44.f;
+        float boxH = 30.f;
+        float bx   = WORLD_W / 2.f - boxW / 2.f;
+        float by   = WBTN_Y + WBTN_H + 8.f;   /* sits just above the buttons */
+
+        /* Shadow */
+        col4(0, 0, 0, 50);
+        fillRoundRect(bx + 3.f, by - 3.f, boxW, boxH, 8.f);
+
+        /* Dark fill */
+        col4(10, 14, 28, 205);
+        fillRoundRect(bx, by, boxW, boxH, 8.f);
+
+        /* Left accent bar (sky blue) */
+        col4(80, 160, 255, 220);
+        fillRect(bx, by + 4.f, 4.f, boxH - 8.f);
+
+        /* Top inner highlight */
+        col4(255, 255, 255, 18);
+        fillRect(bx + 6.f, by + boxH - 6.f, boxW - 12.f, 4.f);
+
+        /* Border */
+        col4(180, 210, 255, 160);
+        outlineRect(bx, by, boxW, boxH, 1.5f);
+
+        /* Text — bright white, centred */
+        col(255, 255, 255);
+        strokeText(WORLD_W / 2.f - lw / 2.f,
+                   by + boxH / 2.f - 5.f,
+                   0.068f, label);
+    }
 
     for (int i = 0; i < WEATHER_COUNT; i++) {
         float bx       = WBTN_STARTX + i * (WBTN_W + WBTN_GAP);
