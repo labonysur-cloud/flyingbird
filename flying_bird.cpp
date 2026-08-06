@@ -2116,11 +2116,8 @@ static void drawHUD(void) {
         float bx = cx - bw / 2.f;
         float by = WORLD_H - bh - 8.f;
 
-        /* drop shadow */
-        col4(0, 0, 0, 55);
-        fillRoundRect(bx + 3.f, by - 3.f, bw, bh, 8.f);
-        /* deep-purple body */
-        col4(32, 14, 76, 205);
+        /* deep-purple body (solid) */
+        col(32, 14, 76);
         fillRoundRect(bx, by, bw, bh, 8.f);
         /* violet top accent bar */
         col4(155, 90, 255, 235);
@@ -2146,9 +2143,7 @@ static void drawHUD(void) {
         float bx = 10.f;
         float by = WORLD_H - bh - 10.f;
 
-        col4(0, 0, 0, 50);
-        fillRoundRect(bx + 3.f, by - 3.f, bw, bh, 7.f);
-        col4(6, 44, 108, 200);                  /* ocean blue */
+        col(6, 44, 108);                  /* ocean blue (solid) */
         fillRoundRect(bx, by, bw, bh, 7.f);
         col4(55, 148, 255, 235);                /* sky-blue accent */
         fillRect(bx + 7.f, by + bh - 5.f, bw - 14.f, 5.f);
@@ -2174,7 +2169,7 @@ static void drawHUD(void) {
         float bx = 10.f;
         float by = WORLD_H - 42.f - 10.f - bh - 5.f;  /* 5 px below BEST box */
 
-        col4(pr, pg, pb, 210);
+        col(pr, pg, pb);
         fillRoundRect(bx, by, bw, bh, 9.f); /* fully rounded pill shape */
         col4(pr + 70, pg + 70, pb + 70, 200);
         outlineRect(bx, by, bw, bh, 1.f);
@@ -2194,9 +2189,7 @@ static void drawHUD(void) {
         float bx = WORLD_W - (float)CLOSE_BTN_SIZE - 10.f - bw - 4.f;
         float by = WORLD_H - bh - 10.f;
 
-        col4(0, 0, 0, 50);
-        fillRoundRect(bx + 3.f, by - 3.f, bw, bh, 7.f);
-        col4(78, 50, 4, 200);                   /* dark amber */
+        col(78, 50, 4);                   /* dark amber (solid) */
         fillRoundRect(bx, by, bw, bh, 7.f);
         col4(218, 168, 0, 235);                 /* gold accent */
         fillRect(bx + 7.f, by + bh - 5.f, bw - 14.f, 5.f);
