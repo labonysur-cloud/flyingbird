@@ -2040,14 +2040,11 @@ static void drawPipes(void) {
  *  golden key badges, a blue accent header and a pulsing glow.
  * ================================================================ */
 static void drawControlsBox(void) {
-    if (g_hintTimer <= 0) return;
+    float alpha = 1.0f;   /* always fully visible on the title screen */
 
-    /* Alpha: full for first 280 frames, fade out in last 80 */
-    float alpha = (g_hintTimer > 80) ? 1.0f : (float)g_hintTimer / 80.f;
-
-    float boxW = 198.f, boxH = 130.f;
-    float bx   = WORLD_W - boxW - 10.f;      /* lower-right, above ground */
-    float by   = GROUND_Y + GROUND_H + 10.f;
+    float boxW = 190.f, boxH = 128.f;
+    float bx   = 10.f;    /* left edge — clear of centred difficulty/weather UI */
+    float by   = 248.f;   /* sits beside the difficulty row, above weather buttons */
 
     /* --- Outer pulsing glow --- */
     float pulse = 0.72f + 0.28f * sinf((float)g_frame * 0.07f);
@@ -2147,7 +2144,7 @@ static void drawHUD(void) {
         strokeText(BIRD_X + 25.f, g_bird.y + 20.f + rise, 0.12f, "+5");
     }
 
-    drawControlsBox();   /* animated controls hint box — fades after ~6 s */
+    /* controls hint box is shown on the title screen only */
 }
 
 /* ================================================================
@@ -2433,6 +2430,9 @@ static void drawTitleScreen(void) {
 
     glDisable(GL_LINE_SMOOTH);
     glLineWidth(1.0f);
+
+    /* Controls hint box — left side, behind bird */
+    drawControlsBox();
 
     /* Showcase bird near title */
     /* SCALING TRANSFORM — title bird pulses in and out (uniform scale) */
