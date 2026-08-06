@@ -2428,11 +2428,6 @@ static void drawTitleScreen(void) {
     float pw = strokeWidth(prompt, 0.082f);
     strokeText(WORLD_W / 2.f - pw / 2.f, 90.f, 0.082f, prompt);
 
-    /* Controls hint */
-    col4(200, 210, 225, 180);
-    bitmapText(WORLD_W / 2.f - 100.f, GROUND_Y + GROUND_H + 8.f,
-               GLUT_BITMAP_HELVETICA_12,
-               "P = Pause    W = Weather    F11 = Fullscreen    ESC = Quit");
 }
 
 /* ================================================================
