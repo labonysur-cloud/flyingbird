@@ -2421,12 +2421,39 @@ static void drawTitleScreen(void) {
     drawWeatherSelector();
     drawDifficultySelector();
 
-    /* Start prompt */
-    float pulse = 0.65f + 0.35f * sinf(g_frame * 0.09f);
-    col4(255, 255, 255, (int)(pulse * 255));
-    const char *prompt = "Press SPACE or Click to Start";
-    float pw = strokeWidth(prompt, 0.082f);
-    strokeText(WORLD_W / 2.f - pw / 2.f, 90.f, 0.082f, prompt);
+    /* ── Start prompt box ─────────────────────────────────────── */
+    {
+        const char *prompt = "PRESS  SPACE  OR  CLICK  TO  START";
+        float pw   = strokeWidth(prompt, 0.072f);
+        float boxW = pw + 48.f;
+        float boxH = 36.f;
+        float bx   = WORLD_W / 2.f - boxW / 2.f;
+        /* sit just below the weather-description line (WBTN_Y - 22 = 98),
+           leaving a small gap so nothing overlaps                          */
+        float by   = WBTN_Y - boxH - 10.f;   /* = 120 - 36 - 10 = 74      */
+
+        /* Outer shadow */
+        col4(0, 0, 0, 55);
+        fillRoundRect(bx + 3.f, by - 3.f, boxW, boxH, 10.f);
+
+        /* Dark semi-transparent fill */
+        col4(10, 14, 28, 210);
+        fillRoundRect(bx, by, boxW, boxH, 10.f);
+
+        /* Inner top highlight strip */
+        col4(255, 255, 255, 22);
+        fillRect(bx + 10.f, by + boxH - 8.f, boxW - 20.f, 5.f);
+
+        /* White border */
+        col4(255, 255, 255, 180);
+        outlineRect(bx, by, boxW, boxH, 2.f);
+
+        /* Centred label — bright white, large and clear */
+        col(255, 255, 255);
+        strokeText(WORLD_W / 2.f - pw / 2.f,
+                   by + boxH / 2.f - 6.f,
+                   0.072f, prompt);
+    }
 
 }
 
