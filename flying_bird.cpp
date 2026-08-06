@@ -2112,53 +2112,53 @@ static void drawHUD(void) {
 
     /* ── SCORE box  (top-centre, tallest) ─────────────────────── */
     {
-        float bw = 108.f, bh = 66.f;
+        float bw = 88.f, bh = 56.f;
         float bx = cx - bw / 2.f;
-        float by = WORLD_H - bh - 6.f;
+        float by = WORLD_H - bh - 8.f;
 
         /* drop shadow */
         col4(0, 0, 0, 55);
-        fillRoundRect(bx + 3.f, by - 3.f, bw, bh, 9.f);
+        fillRoundRect(bx + 3.f, by - 3.f, bw, bh, 8.f);
         /* deep-purple body */
         col4(32, 14, 76, 205);
-        fillRoundRect(bx, by, bw, bh, 9.f);
+        fillRoundRect(bx, by, bw, bh, 8.f);
         /* violet top accent bar */
         col4(155, 90, 255, 235);
-        fillRect(bx + 9.f, by + bh - 5.f, bw - 18.f, 5.f);
+        fillRect(bx + 7.f, by + bh - 5.f, bw - 14.f, 5.f);
         /* border */
         col4(140, 80, 255, 185);
         outlineRect(bx, by, bw, bh, 1.5f);
         /* "SCORE" label */
         col4(205, 170, 255, 225);
-        bitmapText(cx - 17.f, by + bh - 17.f, GLUT_BITMAP_HELVETICA_10, "SCORE");
+        bitmapText(cx - 16.f, by + bh - 16.f, GLUT_BITMAP_HELVETICA_10, "SCORE");
         /* large number */
         sprintf(buf, "%d", g_score);
-        float sw = strokeWidth(buf, 0.18f);
+        float sw = strokeWidth(buf, 0.15f);
         col4(40, 30, 60, 160);                                  /* soft shadow */
-        strokeText(cx - sw / 2.f + 1.5f, by + 7.f, 0.18f, buf);
+        strokeText(cx - sw / 2.f + 1.5f, by + 10.f, 0.15f, buf);
         col(255, 255, 255);
-        strokeText(cx - sw / 2.f, by + 8.5f, 0.18f, buf);
+        strokeText(cx - sw / 2.f, by + 11.5f, 0.15f, buf);
     }
 
     /* ── BEST box  (top-left) ──────────────────────────────────── */
     {
-        float bw = 112.f, bh = 50.f;
-        float bx = 8.f;
-        float by = WORLD_H - bh - 8.f;
+        float bw = 86.f, bh = 42.f;
+        float bx = 10.f;
+        float by = WORLD_H - bh - 10.f;
 
         col4(0, 0, 0, 50);
-        fillRoundRect(bx + 3.f, by - 3.f, bw, bh, 8.f);
+        fillRoundRect(bx + 3.f, by - 3.f, bw, bh, 7.f);
         col4(6, 44, 108, 200);                  /* ocean blue */
-        fillRoundRect(bx, by, bw, bh, 8.f);
+        fillRoundRect(bx, by, bw, bh, 7.f);
         col4(55, 148, 255, 235);                /* sky-blue accent */
-        fillRect(bx + 8.f, by + bh - 5.f, bw - 16.f, 5.f);
+        fillRect(bx + 7.f, by + bh - 5.f, bw - 14.f, 5.f);
         col4(50, 135, 240, 180);
         outlineRect(bx, by, bw, bh, 1.5f);
         col4(130, 200, 255, 225);
-        bitmapText(bx + 9.f, by + bh - 17.f, GLUT_BITMAP_HELVETICA_10, "BEST");
+        bitmapText(bx + 8.f, by + bh - 15.f, GLUT_BITMAP_HELVETICA_10, "BEST");
         sprintf(buf, "%d", g_highScore);
         col(200, 232, 255);
-        bitmapText(bx + 9.f, by + 7.f, GLUT_BITMAP_HELVETICA_18, buf);
+        bitmapText(bx + 8.f, by + 7.f, GLUT_BITMAP_HELVETICA_18, buf);
     }
 
     /* ── Difficulty pill  (small tag below BEST box) ───────────── */
@@ -2170,38 +2170,43 @@ static void drawHUD(void) {
         else if (g_difficulty == DIFF_HARD) { pr = 150; pg = 28;  pb = 28;  }
         else                                { pr = 155; pg = 100; pb = 8;   }
 
-        float bw = 72.f, bh = 17.f;
-        float bx = 8.f;
-        float by = WORLD_H - 50.f - 8.f - bh - 4.f;  /* 4 px below BEST box */
+        float bw = 56.f, bh = 18.f;
+        float bx = 10.f;
+        float by = WORLD_H - 42.f - 10.f - bh - 5.f;  /* 5 px below BEST box */
 
         col4(pr, pg, pb, 210);
-        fillRoundRect(bx, by, bw, bh, 5.f);
+        fillRoundRect(bx, by, bw, bh, 9.f); /* fully rounded pill shape */
         col4(pr + 70, pg + 70, pb + 70, 200);
         outlineRect(bx, by, bw, bh, 1.f);
         col(255, 255, 255);
-        float dw = strokeWidth(dlbl, 0.052f);
-        strokeText(bx + bw / 2.f - dw / 2.f, by + 2.f, 0.052f, dlbl);
+        
+        /* Center text horizontally */
+        int textW = 0;
+        for (const char *p = dlbl; *p; p++) {
+            textW += glutBitmapWidth(GLUT_BITMAP_HELVETICA_10, *p);
+        }
+        bitmapText(bx + bw / 2.f - (float)textW / 2.f, by + 5.f, GLUT_BITMAP_HELVETICA_10, dlbl);
     }
 
     /* ── COINS box  (top-right, clear of close button) ─────────── */
     {
-        float bw = 115.f, bh = 50.f;
+        float bw = 88.f, bh = 42.f;
         float bx = WORLD_W - (float)CLOSE_BTN_SIZE - 10.f - bw - 4.f;
-        float by = WORLD_H - bh - 8.f;
+        float by = WORLD_H - bh - 10.f;
 
         col4(0, 0, 0, 50);
-        fillRoundRect(bx + 3.f, by - 3.f, bw, bh, 8.f);
+        fillRoundRect(bx + 3.f, by - 3.f, bw, bh, 7.f);
         col4(78, 50, 4, 200);                   /* dark amber */
-        fillRoundRect(bx, by, bw, bh, 8.f);
+        fillRoundRect(bx, by, bw, bh, 7.f);
         col4(218, 168, 0, 235);                 /* gold accent */
-        fillRect(bx + 8.f, by + bh - 5.f, bw - 16.f, 5.f);
+        fillRect(bx + 7.f, by + bh - 5.f, bw - 14.f, 5.f);
         col4(200, 155, 0, 180);
         outlineRect(bx, by, bw, bh, 1.5f);
         col4(255, 215, 55, 225);
-        bitmapText(bx + 9.f, by + bh - 17.f, GLUT_BITMAP_HELVETICA_10, "COINS");
+        bitmapText(bx + 8.f, by + bh - 15.f, GLUT_BITMAP_HELVETICA_10, "COINS");
         sprintf(buf, "%d", g_coinScore);
         col(255, 222, 40);
-        bitmapText(bx + 9.f, by + 7.f, GLUT_BITMAP_HELVETICA_18, buf);
+        bitmapText(bx + 8.f, by + 7.f, GLUT_BITMAP_HELVETICA_18, buf);
     }
 
     /* ── Coin collect popup ─────────────────────────────────────── */
