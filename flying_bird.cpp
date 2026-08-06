@@ -767,7 +767,7 @@ static void buildRainWav(void) {
     int totalSamp = (int)(1.3f * SFX_RATE);
     int dataBytes = totalSamp * 2;
 
-    unsigned char *p = g_sfxBuf[SFX_RAIN];
+    unsigned char *p = g_sfxBuf[SFX_AMBIENT_RAIN];
     int riffSz = 36 + dataBytes;
     memcpy(p,    "RIFF", 4); memcpy(p + 4,  &riffSz, 4);
     memcpy(p + 8, "WAVE", 4);
