@@ -97,7 +97,7 @@
 
 /* Sound sample rate */
 #define SFX_RATE         22050
-#define SFX_BUF          65536   /* 64 KB per sound, enough for ~1.5 sec */
+#define SFX_BUF          1048576   /* 64 KB per sound, enough for ~1.5 sec */
 
 /* Sound IDs */
 #define SFX_FLAP    0
@@ -107,7 +107,8 @@
 #define SFX_HOVER   4
 #define SFX_WEATHER 5
 #define SFX_COIN    6
-#define SFX_COUNT         7
+#define SFX_START   7
+#define SFX_COUNT         8
 
 /* ================================================================
  *  ENUMS
@@ -275,6 +276,7 @@ static const int g_sfxPriority[SFX_COUNT] = {
     0, /* SFX_HOVER   — minimal */
     3, /* SFX_WEATHER — medium  */
     4, /* SFX_COIN    — high    */
+    4, /* SFX_START     */
 };
 /* Approximate playback length in frames at 60 FPS */
 static const int g_sfxDurFrames[SFX_COUNT] = {
@@ -285,6 +287,7 @@ static const int g_sfxDurFrames[SFX_COUNT] = {
      2, /* SFX_HOVER   ~0.03 s */
     28, /* SFX_WEATHER ~0.46 s */
     16, /* SFX_COIN    ~0.26 s */
+    84, /* SFX_START   ~1.4 s */
 };
 static int g_activeSfxId    = -1; /* ID of currently playing sound   */
 static int g_activeSfxTicks =  0; /* Frames left in current playback */
@@ -723,11 +726,21 @@ static void buildWav(int id,
     g_sfxSize[id] = 44 + dataBytes;
 }
 
+static void loadWavToSfxBuf(int id, const char *filename) {
+    if (id < 0 || id >= SFX_COUNT) return;
+    FILE *f = fopen(filename, "rb");
+    if (!f) return;
+    fseek(f, 0, SEEK_END);
+    long size = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    if (size > SFX_BUF) size = SFX_BUF;
+    fread(g_sfxBuf[id], 1, size, f);
+    g_sfxSize[id] = size;
+    fclose(f);
+}
+
 static void playSound(int id) {
-    if (id == SFX_FLAP) { mciSendStringA("play jump from 0", NULL, 0, NULL); return; }
-    if (id == SFX_COIN) { mciSendStringA("play coin from 0", NULL, 0, NULL); return; }
-    if (id == SFX_DIE)  { mciSendStringA("play over from 0", NULL, 0, NULL); return; }
-    
+    if (id < 0 || id >= SFX_COUNT || g_sfxSize[id] == 0) return;
     if (g_activeSfxTicks > 0 && g_activeSfxId >= 0) {
         if (g_sfxPriority[id] < g_sfxPriority[g_activeSfxId]) return;
     }
@@ -738,13 +751,13 @@ static void playSound(int id) {
 
 
 static void initSounds(void) {
-    mciSendStringA("open \"asset/sound/jump.wav\" type waveaudio alias jump", NULL, 0, NULL);
-    mciSendStringA("open \"asset/sound/collect-coin.wav\" type waveaudio alias coin", NULL, 0, NULL);
-    mciSendStringA("open \"asset/sound/game-over.wav\" type waveaudio alias over", NULL, 0, NULL);
-    mciSendStringA("open \"asset/sound/game-start.wav\" type waveaudio alias start", NULL, 0, NULL);
+    loadWavToSfxBuf(SFX_FLAP, "asset/sound/jump.wav");
+    loadWavToSfxBuf(SFX_COIN, "asset/sound/collect-coin.wav");
+    loadWavToSfxBuf(SFX_DIE,  "asset/sound/game-over.wav");
+    loadWavToSfxBuf(SFX_START,"asset/sound/game-start.wav");
+
+    /* Only home page needs MCI since it's background music */
     mciSendStringA("open \"asset/sound/home-page.wav\" type waveaudio alias home", NULL, 0, NULL);
-    
-    /* Play home page music initially */
     mciSendStringA("play home repeat", NULL, 0, NULL);
 
     /* ----------------------------------------------------------------
@@ -916,7 +929,7 @@ static void resetGame(void) {
     initBird(); initPipes();
     g_state = STATE_PLAYING;
     mciSendStringA("stop home", NULL, 0, NULL);
-    mciSendStringA("play start from 0", NULL, 0, NULL);
+    playSound(SFX_START);
 }
 
 static void loadHighScore(void) {
