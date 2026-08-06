@@ -247,6 +247,7 @@ static int         g_fullscreen = 1;
 /* Game over delay */
 static int         g_gameOverDelay = 0;
 static float       g_shearX = 0.f;
+static int         g_hintTimer = 0;    /* controls-box fade timer (frames remaining) */
 
 /* Mouse tracking (world space) */
 static float       g_mouseX = 0, g_mouseY = 0;
@@ -1142,7 +1143,8 @@ static void resetGame(void) {
     }
     g_shakeTicks = 0; g_flashTicks = 0; g_groundScroll = 0.f;
     g_gameOverDelay = 0;
-    g_shearX = 0.f;
+    g_shearX    = 0.f;
+    g_hintTimer = 360;  /* show controls box for ~6 s at 60 fps */
     initBird(); initPipes();
     g_state = STATE_PLAYING;
 }
@@ -2030,6 +2032,81 @@ static void drawPipes(void) {
 }
 
 /* ================================================================
+ *  DRAW: CONTROLS HINT BOX
+ *
+ *  Appears when a new game starts. Stays fully opaque for the first
+ *  280 frames then smoothly fades out over the last 80 frames.
+ *  Shows all key bindings inside a premium dark-glass panel with
+ *  golden key badges, a blue accent header and a pulsing glow.
+ * ================================================================ */
+static void drawControlsBox(void) {
+    if (g_hintTimer <= 0) return;
+
+    /* Alpha: full for first 280 frames, fade out in last 80 */
+    float alpha = (g_hintTimer > 80) ? 1.0f : (float)g_hintTimer / 80.f;
+
+    float boxW = 198.f, boxH = 130.f;
+    float bx   = WORLD_W - boxW - 10.f;      /* lower-right, above ground */
+    float by   = GROUND_Y + GROUND_H + 10.f;
+
+    /* --- Outer pulsing glow --- */
+    float pulse = 0.72f + 0.28f * sinf((float)g_frame * 0.07f);
+    col4(50, 110, 235, (int)(alpha * 38.f * pulse));
+    fillRoundRect(bx - 6.f, by - 6.f, boxW + 12.f, boxH + 12.f, 14.f);
+
+    /* --- Main dark-glass panel --- */
+    col4(7, 11, 22, (int)(alpha * 215.f));
+    fillRoundRect(bx, by, boxW, boxH, 9.f);
+
+    /* --- Top accent bar (blue) --- */
+    col4(65, 140, 255, (int)(alpha * 210.f));
+    fillRect(bx + 9.f, by + boxH - 6.f, boxW - 18.f, 4.f);
+
+    /* --- Panel border --- */
+    col4(60, 100, 180, (int)(alpha * 145.f));
+    outlineRect(bx, by, boxW, boxH, 1.5f);
+
+    /* --- Title (centred, stroke text) --- */
+    col4(135, 195, 255, (int)(alpha * 255.f));
+    float tw = strokeWidth("CONTROLS", 0.055f);
+    strokeText(bx + boxW / 2.f - tw / 2.f, by + boxH - 20.f, 0.055f, "CONTROLS");
+
+    /* --- Divider line --- */
+    col4(45, 80, 145, (int)(alpha * 130.f));
+    fillRect(bx + 9.f, by + boxH - 26.f, boxW - 18.f, 1.f);
+
+    /* --- Key-action table --- */
+    const char *keys[5]    = { "SPACE/Click", "P",     "W",       "F11",        "ESC"  };
+    const char *actions[5] = { "Flap",        "Pause", "Weather", "Fullscreen", "Quit" };
+
+    float lineH = 19.f;
+    float topY  = by + boxH - 28.f;
+
+    for (int i = 0; i < 5; i++) {
+        float ly = topY - (float)(i + 1) * lineH;
+
+        /* Key badge background */
+        col4(32, 46, 74, (int)(alpha * 235.f));
+        fillRoundRect(bx + 9.f, ly - 2.f, 78.f, 14.f, 3.f);
+        /* Key badge border */
+        col4(80, 118, 195, (int)(alpha * 165.f));
+        outlineRect(bx + 9.f, ly - 2.f, 78.f, 14.f, 1.f);
+
+        /* Key label — golden yellow */
+        col4(255, 225, 75, (int)(alpha * 255.f));
+        bitmapText(bx + 13.f, ly + 1.f, GLUT_BITMAP_HELVETICA_10, keys[i]);
+
+        /* Arrow separator */
+        col4(95, 112, 148, (int)(alpha * 205.f));
+        bitmapText(bx + 93.f, ly + 1.f, GLUT_BITMAP_HELVETICA_10, "->");
+
+        /* Action label — soft blue-white */
+        col4(205, 222, 255, (int)(alpha * 245.f));
+        bitmapText(bx + 108.f, ly + 1.f, GLUT_BITMAP_HELVETICA_10, actions[i]);
+    }
+}
+
+/* ================================================================
  *  DRAW: HUD
  * ================================================================ */
 
@@ -2070,10 +2147,7 @@ static void drawHUD(void) {
         strokeText(BIRD_X + 25.f, g_bird.y + 20.f + rise, 0.12f, "+5");
     }
 
-    col4(200, 210, 225, 180);
-    bitmapText(WORLD_W / 2.f - 95.f, GROUND_Y + GROUND_H + 8.f,
-               GLUT_BITMAP_HELVETICA_12,
-               "P=Pause  W=Weather  F11=Fullscreen  ESC=Quit");
+    drawControlsBox();   /* animated controls hint box — fades after ~6 s */
 }
 
 /* ================================================================
@@ -2852,6 +2926,7 @@ static void updateGame(void) {
 
     /* Playing */
     updateBird();
+    if (g_hintTimer > 0) g_hintTimer--;   /* tick down controls-box timer */
     updatePipes();
     updateParticles();     /* advance score-sparkle particles */
 
@@ -2879,6 +2954,7 @@ static void updateGame(void) {
 
     if (checkCollision()) {
         g_state         = STATE_GAMEOVER;
+        g_hintTimer     = 0;             /* hide controls box immediately on death */
         g_bird.alive    = 0;
         g_flashTicks    = 10;
         g_gameOverDelay = GAMEOVER_DELAY;
