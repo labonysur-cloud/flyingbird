@@ -1232,7 +1232,7 @@ static void setWeather(WeatherMode w) {
 
 static void updateWeather(void) {
     g_weatherTimer++;
-    if (g_weatherTimer >= WEATHER_CYCLE_FRAMES) nextWeather();
+    /* Weather no longer auto-cycles — only changes on explicit user input */
     if (g_weatherNameTimer > 0) g_weatherNameTimer--;
     if (g_wFlashTicks > 0) g_wFlashTicks--;
 
@@ -2431,8 +2431,6 @@ static void drawTitleScreen(void) {
     glDisable(GL_LINE_SMOOTH);
     glLineWidth(1.0f);
 
-    /* Controls hint box — left side, behind bird */
-    drawControlsBox();
 
     /* Showcase bird near title */
     /* SCALING TRANSFORM — title bird pulses in and out (uniform scale) */
