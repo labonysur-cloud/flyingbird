@@ -107,9 +107,12 @@
 #define SFX_HOVER   4
 #define SFX_WEATHER 5
 #define SFX_COIN    6
-#define SFX_RAIN    7   /* looping ambient rain (waveOut channel) */
-#define SFX_THUNDER 8   /* lightning strike: crack + rumble + bass */
-#define SFX_COUNT   9
+#define SFX_AMBIENT_RAIN  7   /* looping ambient */
+#define SFX_AMBIENT_SNOW  8   
+#define SFX_AMBIENT_NIGHT 9   
+#define SFX_AMBIENT_DAY   10   
+#define SFX_THUNDER       11  /* lightning strike */
+#define SFX_COUNT         12
 
 /* ================================================================
  *  ENUMS
@@ -277,7 +280,10 @@ static const int g_sfxPriority[SFX_COUNT] = {
     0, /* SFX_HOVER   — minimal */
     3, /* SFX_WEATHER — medium  */
     4, /* SFX_COIN    — high    */
-    0, /* SFX_RAIN    — N/A (waveOut loop, not PlaySound) */
+    0, /* SFX_AMBIENT_RAIN */
+    0, /* SFX_AMBIENT_SNOW */
+    0, /* SFX_AMBIENT_NIGHT*/
+    0, /* SFX_AMBIENT_DAY  */
     4, /* SFX_THUNDER — high    */
 };
 /* Approximate playback length in frames at 60 FPS */
@@ -289,7 +295,10 @@ static const int g_sfxDurFrames[SFX_COUNT] = {
      2, /* SFX_HOVER   ~0.03 s */
     28, /* SFX_WEATHER ~0.46 s */
     16, /* SFX_COIN    ~0.26 s */
-     0, /* SFX_RAIN    — waveOut loop, no PlaySound duration */
+     0, /* SFX_AMBIENT_RAIN */
+     0, /* SFX_AMBIENT_SNOW */
+     0, /* SFX_AMBIENT_NIGHT*/
+     0, /* SFX_AMBIENT_DAY  */
     80, /* SFX_THUNDER ~1.32 s */
 };
 static int g_activeSfxId    = -1; /* ID of currently playing sound   */
@@ -300,9 +309,9 @@ static int g_activeSfxTicks =  0; /* Frames left in current playback */
  * PlaySound (the two APIs share no internal state on Windows).
  * This means rain keeps sounding while score/flap/coin effects fire.
  * ---------------------------------------------------------------- */
-static HWAVEOUT g_rainOut    = NULL;
-static WAVEHDR  g_rainHdr;
-static int      g_rainActive = 0;
+static HWAVEOUT g_ambientOut    = NULL;
+static WAVEHDR  g_ambientHdr;
+static int      g_ambientActive = 0;
 
 /* ================================================================
  *  UTILITY
@@ -807,7 +816,123 @@ static void buildRainWav(void) {
 
         sam[i] = (short)clampf(s * 0.75f * env * 32000.f, -32000.f, 32000.f);
     }
-    g_sfxSize[SFX_RAIN] = 44 + dataBytes;
+    g_sfxSize[SFX_AMBIENT_RAIN] = 44 + dataBytes;
+}
+
+static void buildSnowWav(void) {
+    int totalSamp = (int)(1.3f * SFX_RATE);
+    int dataBytes = totalSamp * 2;
+    unsigned char *p = g_sfxBuf[SFX_AMBIENT_SNOW];
+    int riffSz = 36 + dataBytes;
+    memcpy(p,    "RIFF", 4); memcpy(p + 4,  &riffSz, 4);
+    memcpy(p + 8, "WAVE", 4);
+    memcpy(p + 12, "fmt ", 4);
+    int   fmtSz = 16;           memcpy(p + 16, &fmtSz, 4);
+    short one   = 1;            memcpy(p + 20, &one,   2);
+                                memcpy(p + 22, &one,   2);
+    int   sr    = SFX_RATE;     memcpy(p + 24, &sr,    4);
+    int   br    = SFX_RATE * 2; memcpy(p + 28, &br,    4);
+    short ba    = 2;            memcpy(p + 32, &ba,    2);
+    short bps   = 16;           memcpy(p + 34, &bps,   2);
+    memcpy(p + 36, "data", 4);  memcpy(p + 40, &dataBytes, 4);
+    
+    short *sam  = reinterpret_cast<short*>(p + 44);
+    int fadeLen = (int)(0.07f * SFX_RATE);
+    float lp1 = 0.f, lp2 = 0.f;
+    for (int i = 0; i < totalSamp; i++) {
+        float t = (float)i / SFX_RATE;
+        float noise = ((float)rand() / RAND_MAX) * 2.f - 1.f;
+        float lfo = 0.5f + 0.5f * sinf(t * 2.f * 3.14159f * (1.f / 1.3f));
+        float cutoff = 0.05f + 0.1f * lfo;
+        lp1 = lp1 * (1.f - cutoff) + noise * cutoff;
+        lp2 = lp2 * (1.f - cutoff) + lp1 * cutoff;
+        float s = lp2 * 1.5f;
+
+        float env = 1.f;
+        if (i < fadeLen)                  env = (float)i / fadeLen;
+        else if (i > totalSamp - fadeLen) env = (float)(totalSamp - i) / fadeLen;
+        sam[i] = (short)clampf(s * env * 32000.f, -32000.f, 32000.f);
+    }
+    g_sfxSize[SFX_AMBIENT_SNOW] = 44 + dataBytes;
+}
+
+static void buildNightWav(void) {
+    int totalSamp = (int)(1.3f * SFX_RATE);
+    int dataBytes = totalSamp * 2;
+    unsigned char *p = g_sfxBuf[SFX_AMBIENT_NIGHT];
+    int riffSz = 36 + dataBytes;
+    memcpy(p,    "RIFF", 4); memcpy(p + 4,  &riffSz, 4);
+    memcpy(p + 8, "WAVE", 4);
+    memcpy(p + 12, "fmt ", 4);
+    int   fmtSz = 16;           memcpy(p + 16, &fmtSz, 4);
+    short one   = 1;            memcpy(p + 20, &one,   2);
+                                memcpy(p + 22, &one,   2);
+    int   sr    = SFX_RATE;     memcpy(p + 24, &sr,    4);
+    int   br    = SFX_RATE * 2; memcpy(p + 28, &br,    4);
+    short ba    = 2;            memcpy(p + 32, &ba,    2);
+    short bps   = 16;           memcpy(p + 34, &bps,   2);
+    memcpy(p + 36, "data", 4);  memcpy(p + 40, &dataBytes, 4);
+    
+    short *sam  = reinterpret_cast<short*>(p + 44);
+    int fadeLen = (int)(0.07f * SFX_RATE);
+    for (int i = 0; i < totalSamp; i++) {
+        float t = (float)i / SFX_RATE;
+        float carrier = sinf(t * 2.f * 3.14159f * 4500.f);
+        float mod = sinf(t * 2.f * 3.14159f * 25.f) > 0 ? 1.f : 0.f;
+        float gate = fmodf(t, 0.65f) < 0.3f ? 1.f : 0.f;
+        float s = carrier * mod * gate * 0.15f;
+
+        float env = 1.f;
+        if (i < fadeLen)                  env = (float)i / fadeLen;
+        else if (i > totalSamp - fadeLen) env = (float)(totalSamp - i) / fadeLen;
+        sam[i] = (short)clampf(s * env * 32000.f, -32000.f, 32000.f);
+    }
+    g_sfxSize[SFX_AMBIENT_NIGHT] = 44 + dataBytes;
+}
+
+static void buildDayWav(void) {
+    int totalSamp = (int)(1.3f * SFX_RATE);
+    int dataBytes = totalSamp * 2;
+    unsigned char *p = g_sfxBuf[SFX_AMBIENT_DAY];
+    int riffSz = 36 + dataBytes;
+    memcpy(p,    "RIFF", 4); memcpy(p + 4,  &riffSz, 4);
+    memcpy(p + 8, "WAVE", 4);
+    memcpy(p + 12, "fmt ", 4);
+    int   fmtSz = 16;           memcpy(p + 16, &fmtSz, 4);
+    short one   = 1;            memcpy(p + 20, &one,   2);
+                                memcpy(p + 22, &one,   2);
+    int   sr    = SFX_RATE;     memcpy(p + 24, &sr,    4);
+    int   br    = SFX_RATE * 2; memcpy(p + 28, &br,    4);
+    short ba    = 2;            memcpy(p + 32, &ba,    2);
+    short bps   = 16;           memcpy(p + 34, &bps,   2);
+    memcpy(p + 36, "data", 4);  memcpy(p + 40, &dataBytes, 4);
+    
+    short *sam  = reinterpret_cast<short*>(p + 44);
+    int fadeLen = (int)(0.07f * SFX_RATE);
+    float lp = 0.f;
+    for (int i = 0; i < totalSamp; i++) {
+        float t = (float)i / SFX_RATE;
+        float noise = ((float)rand() / RAND_MAX) * 2.f - 1.f;
+        lp = lp * 0.98f + noise * 0.02f;
+        float breeze = lp * 0.1f;
+        float chirp = 0.f;
+        if (t > 0.2f && t < 0.25f) {
+            float ct = t - 0.2f;
+            float freq = 4000.f + 40000.f * ct; 
+            chirp = sinf(ct * 2.f * 3.14159f * freq) * 0.1f;
+        } else if (t > 0.3f && t < 0.38f) {
+            float ct = t - 0.3f;
+            float freq = 6000.f - 25000.f * ct; 
+            chirp = sinf(ct * 2.f * 3.14159f * freq) * 0.1f;
+        }
+        float s = breeze + chirp;
+
+        float env = 1.f;
+        if (i < fadeLen)                  env = (float)i / fadeLen;
+        else if (i > totalSamp - fadeLen) env = (float)(totalSamp - i) / fadeLen;
+        sam[i] = (short)clampf(s * env * 32000.f, -32000.f, 32000.f);
+    }
+    g_sfxSize[SFX_AMBIENT_DAY] = 44 + dataBytes;
 }
 
 /* ================================================================
@@ -922,21 +1047,21 @@ static void buildThunderWav(void) {
  *  versions, unlike the older WHDR_BEGINLOOP / WHDR_ENDLOOP flags
  *  which are only supported by some legacy hardware drivers.
  * ================================================================ */
-static void CALLBACK rainWaveCallback(HWAVEOUT hwo, UINT msg,
+static void CALLBACK ambientWaveCallback(HWAVEOUT hwo, UINT msg,
                                       DWORD_PTR inst,
                                       DWORD_PTR p1, DWORD_PTR p2)
 {
     (void)inst; (void)p2;
-    if (msg == WOM_DONE && g_rainActive) {
+    if (msg == WOM_DONE && g_ambientActive) {
         LPWAVEHDR hdr = (LPWAVEHDR)p1;
         hdr->dwFlags &= ~WHDR_DONE;      /* clear completion flag */
         waveOutWrite(hwo, hdr, sizeof(WAVEHDR));
     }
 }
 
-static void startRainLoop(void) {
-    if (g_rainActive) return;
-    if (g_sfxSize[SFX_RAIN] == 0) return;
+static void startAmbientLoop(int sfxId) {
+    if (g_ambientActive) return;
+    if (g_sfxSize[sfxId] == 0) return;
 
     WAVEFORMATEX wfx = {};
     wfx.wFormatTag      = WAVE_FORMAT_PCM;
@@ -946,27 +1071,27 @@ static void startRainLoop(void) {
     wfx.nBlockAlign     = 2;
     wfx.nAvgBytesPerSec = SFX_RATE * 2;
 
-    if (waveOutOpen(&g_rainOut, WAVE_MAPPER, &wfx,
-                    (DWORD_PTR)rainWaveCallback, 0,
+    if (waveOutOpen(&g_ambientOut, WAVE_MAPPER, &wfx,
+                    (DWORD_PTR)ambientWaveCallback, 0,
                     CALLBACK_FUNCTION) != MMSYSERR_NOERROR) return;
 
-    memset(&g_rainHdr, 0, sizeof(g_rainHdr));
-    g_rainHdr.lpData         = (LPSTR)(g_sfxBuf[SFX_RAIN] + 44);
-    g_rainHdr.dwBufferLength = (DWORD)(g_sfxSize[SFX_RAIN] - 44);
-    g_rainHdr.dwFlags        = 0;        /* no looping flags needed */
+    memset(&g_ambientHdr, 0, sizeof(g_ambientHdr));
+    g_ambientHdr.lpData         = (LPSTR)(g_sfxBuf[sfxId] + 44);
+    g_ambientHdr.dwBufferLength = (DWORD)(g_sfxSize[sfxId] - 44);
+    g_ambientHdr.dwFlags        = 0;        /* no looping flags needed */
 
-    g_rainActive = 1;                    /* set BEFORE write so callback works */
-    waveOutPrepareHeader(g_rainOut, &g_rainHdr, sizeof(g_rainHdr));
-    waveOutWrite(g_rainOut, &g_rainHdr, sizeof(g_rainHdr));
+    g_ambientActive = 1;                    /* set BEFORE write so callback works */
+    waveOutPrepareHeader(g_ambientOut, &g_ambientHdr, sizeof(g_ambientHdr));
+    waveOutWrite(g_ambientOut, &g_ambientHdr, sizeof(g_ambientHdr));
 }
 
-static void stopRainLoop(void) {
-    if (!g_rainActive || !g_rainOut) return;
-    g_rainActive = 0;                    /* tell callback to stop re-queuing */
-    waveOutReset(g_rainOut);             /* stop current playback immediately  */
-    waveOutUnprepareHeader(g_rainOut, &g_rainHdr, sizeof(g_rainHdr));
-    waveOutClose(g_rainOut);
-    g_rainOut = NULL;
+static void stopAmbientLoop(void) {
+    if (!g_ambientActive || !g_ambientOut) return;
+    g_ambientActive = 0;                    /* tell callback to stop re-queuing */
+    waveOutReset(g_ambientOut);             /* stop current playback immediately  */
+    waveOutUnprepareHeader(g_ambientOut, &g_ambientHdr, sizeof(g_ambientHdr));
+    waveOutClose(g_ambientOut);
+    g_ambientOut = NULL;
 }
 
 static void initSounds(void) {
@@ -1040,6 +1165,9 @@ static void initSounds(void) {
      * SFX_THUNDER — crack + rumble + bass tail on each lightning bolt.
      * ---------------------------------------------------------------- */
     buildRainWav();
+    buildSnowWav();
+    buildNightWav();
+    buildDayWav();
     buildThunderWav();
 }
 
@@ -1207,26 +1335,35 @@ static void updateShake(void) {
  *  WEATHER SYSTEM
  * ================================================================ */
 
+static void updateWeatherAmbient(void) {
+    stopAmbientLoop();
+    int sfx = -1;
+    if      (g_weather == WEATHER_RAIN)  sfx = SFX_AMBIENT_RAIN;
+    else if (g_weather == WEATHER_SNOW)  sfx = SFX_AMBIENT_SNOW;
+    else if (g_weather == WEATHER_NIGHT) sfx = SFX_AMBIENT_NIGHT;
+    else if (g_weather == WEATHER_DAY || g_weather == WEATHER_SUNNY) sfx = SFX_AMBIENT_DAY;
+    
+    if (sfx != -1) startAmbientLoop(sfx);
+}
+
 static void nextWeather(void) {
-    stopRainLoop();   /* stop rain before changing weather */
     g_weather         = static_cast<WeatherMode>((g_weather + 1) % WEATHER_COUNT);
     g_weatherTimer    = 0;
     g_weatherNameTimer = 150;
     g_wFlashTicks     = 12;
     initRain();
     playSound(SFX_WEATHER);
-    if (g_weather == WEATHER_RAIN) startRainLoop();
+    updateWeatherAmbient();
 }
 
 static void setWeather(WeatherMode w) {
-    stopRainLoop();   /* stop rain before changing weather */
     g_weather          = w;
     g_weatherTimer     = 0;
     g_weatherNameTimer = 120;
     g_wFlashTicks      = 10;
     initRain();
     playSound(SFX_WEATHER);
-    if (g_weather == WEATHER_RAIN) startRainLoop();
+    updateWeatherAmbient();
 }
 
 static void updateWeather(void) {
