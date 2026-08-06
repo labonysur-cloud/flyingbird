@@ -771,8 +771,7 @@ flying_bird.exe
 
 ```
 flyingbird/
-├── flying_bird.cpp     Complete game source (~2800 lines, C++17, single file)
-├── flying_bird.c       Original C99 source (kept for reference)
+├── flying_bird.cpp     Complete game source (~3141 lines, C++17, single file)
 ├── FlyingBird.cbp      Code::Blocks project file (g++ / c++17, linker flags pre-set)
 ├── freeglut.dll        FreeGLUT runtime DLL (required next to .exe)
 ├── highscore.txt       Persistent high score storage
