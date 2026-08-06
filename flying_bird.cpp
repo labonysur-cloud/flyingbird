@@ -283,7 +283,7 @@ static const int g_sfxPriority[SFX_COUNT] = {
     5, /* SFX_THUNDER2  */
 };
 /* Approximate playback length in frames at 60 FPS */
-static const int g_sfxDurFrames[SFX_COUNT] = {
+static int g_sfxDurFrames[SFX_COUNT] = {
      6, /* SFX_FLAP    ~0.10 s */
     21, /* SFX_SCORE   ~0.35 s */
     46, /* SFX_DIE     ~0.76 s */
@@ -735,7 +735,10 @@ static void buildWav(int id,
 static void loadWavToSfxBuf(int id, const char *filename) {
     if (id < 0 || id >= SFX_COUNT) return;
     FILE *f = fopen(filename, "rb");
-    if (!f) return;
+    if (!f) {
+        g_sfxSize[id] = 0;
+        return;
+    }
     fseek(f, 0, SEEK_END);
     long size = ftell(f);
     fseek(f, 0, SEEK_SET);
@@ -743,6 +746,19 @@ static void loadWavToSfxBuf(int id, const char *filename) {
     fread(g_sfxBuf[id], 1, size, f);
     g_sfxSize[id] = size;
     fclose(f);
+
+    /* Read byte rate from WAV header (offset 28) to compute actual duration in frames */
+    if (size > 44 && 
+        g_sfxBuf[id][0] == 'R' && g_sfxBuf[id][1] == 'I' && g_sfxBuf[id][2] == 'F' && g_sfxBuf[id][3] == 'F' &&
+        g_sfxBuf[id][8] == 'W' && g_sfxBuf[id][9] == 'A' && g_sfxBuf[id][10] == 'V' && g_sfxBuf[id][11] == 'E') 
+    {
+        int byteRate = 0;
+        memcpy(&byteRate, &g_sfxBuf[id][28], 4);
+        if (byteRate > 0) {
+            float duration = (float)(size - 44) / byteRate;
+            g_sfxDurFrames[id] = (int)(duration * 60.f + 0.5f);
+        }
+    }
 }
 
 static void playSound(int id) {
@@ -786,65 +802,37 @@ static void initSounds(void) {
      * SFX_FLAP — Light, airy wing beat
      * A quick rising chirp (G4→D5) that snaps back slightly (→A4).
      * Pure sine keeps it clean; happens every flap so must not tire.
+     * Synthesized fallback if jump.wav is missing.
      * ---------------------------------------------------------------- */
-    { float f[] = {392.f, 587.f, 880.f, 660.f};
-      float d[] = {0.020f, 0.020f, 0.020f, 0.040f};
-      buildWav(SFX_FLAP, f, d, 4, 0.65f, 0); }
-
-    /* ----------------------------------------------------------------
-     * SFX_SCORE — Triumphant 5-note fanfare  C5→E5→G5→C6→E6
-     * Bright, punchy, joyful — reward every pipe cleared.
-     * Each note gets a clean attack; final note rings out.
-     * ---------------------------------------------------------------- */
-    { float f[] = {523.f, 659.f, 784.f, 1047.f, 1319.f};
-      float d[] = {0.055f, 0.055f, 0.055f, 0.070f, 0.120f};
-      buildWav(SFX_SCORE, f, d, 5, 0.85f, 0); }
+    if (g_sfxSize[SFX_FLAP] == 0) {
+        float f[] = {392.f, 587.f, 880.f, 660.f};
+        float d[] = {0.020f, 0.020f, 0.020f, 0.040f};
+        buildWav(SFX_FLAP, f, d, 4, 0.65f, 0);
+    }
 
     /* ----------------------------------------------------------------
      * SFX_DIE — Dramatic descending wail  G4→F4→Eb4→D4→C4→Bb3→G3
      * 7-note downward spiral with rich harmonics = classic game-over.
      * Slow enough to feel heavy and final.
+     * Synthesized fallback if game-over.wav is missing.
      * ---------------------------------------------------------------- */
-    { float f[] = {392.f, 349.f, 311.f, 294.f, 261.f, 233.f, 196.f};
-      float d[] = {0.09f,  0.09f,  0.10f, 0.11f, 0.11f, 0.12f, 0.19f};
-      buildWav(SFX_DIE, f, d, 7, 0.90f, 1); }
-
-    /* ----------------------------------------------------------------
-     * SFX_CLICK — Crisp satisfying UI pop
-     * High-freq attack that snaps to a lower tone: feels decisive.
-     * Very short so it never overlaps with the next action.
-     * ---------------------------------------------------------------- */
-    { float f[] = {1400.f, 800.f, 400.f};
-      float d[] = {0.010f, 0.015f, 0.018f};
-      buildWav(SFX_CLICK, f, d, 3, 0.75f, 0); }
-
-    /* ----------------------------------------------------------------
-     * SFX_HOVER — Whisper-soft mouse-over tick
-     * Barely audible high-to-mid tone — confirms hover without
-     * distracting from gameplay.  Very low volume is intentional.
-     * ---------------------------------------------------------------- */
-    { float f[] = {1200.f, 900.f};
-      float d[] = {0.012f, 0.018f};
-      buildWav(SFX_HOVER, f, d, 2, 0.35f, 0); }
-
-    /* ----------------------------------------------------------------
-     * SFX_WEATHER — Magical 5-note pentatonic sweep  C4→E4→G4→C5→E5
-     * Harmonics give it a warm, bell-like shimmer that suits the
-     * atmospheric weather transition perfectly.
-     * ---------------------------------------------------------------- */
-    { float f[] = {262.f, 330.f, 392.f, 523.f, 659.f};
-      float d[] = {0.065f, 0.065f, 0.075f, 0.085f, 0.175f};
-      buildWav(SFX_WEATHER, f, d, 5, 0.80f, 1); }
+    if (g_sfxSize[SFX_DIE] == 0) {
+        float f[] = {392.f, 349.f, 311.f, 294.f, 261.f, 233.f, 196.f};
+        float d[] = {0.09f,  0.09f,  0.10f, 0.11f, 0.11f, 0.12f, 0.19f};
+        buildWav(SFX_DIE, f, d, 7, 0.90f, 1);
+    }
 
     /* ----------------------------------------------------------------
      * SFX_COIN — Classic 4-note ascending arcade chime  C6→E6→G6→C7
      * Harmonics ON for a rich, bell-like timbre.
      * Priority 4 (see g_sfxPriority) keeps it safe from interruption.
+     * Synthesized fallback if collect-coin.wav is missing.
      * ---------------------------------------------------------------- */
-    { float f[] = {1047.0f, 1319.0f, 1568.0f, 2093.0f};
-      float d[] = {0.045f,  0.045f,  0.045f,  0.125f};
-      buildWav(SFX_COIN, f, d, 4, 0.95f, 1); }
-
+    if (g_sfxSize[SFX_COIN] == 0) {
+        float f[] = {1047.0f, 1319.0f, 1568.0f, 2093.0f};
+        float d[] = {0.045f,  0.045f,  0.045f,  0.125f};
+        buildWav(SFX_COIN, f, d, 4, 0.95f, 1);
+    }
 }
 
 /* ================================================================
