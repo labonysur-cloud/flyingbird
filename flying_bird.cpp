@@ -974,6 +974,8 @@ static void initPipes(void) {
  *  GAME LIFECYCLE
  * ================================================================ */
 
+static void updateWeatherAmbient(void);
+
 static void resetGame(void) {
     g_score         = 0;
     g_coinScore     = 0;
