@@ -97,7 +97,7 @@
 
 /* Sound sample rate */
 #define SFX_RATE         22050
-#define SFX_BUF          1048576   /* 64 KB per sound, enough for ~1.5 sec */
+#define SFX_BUF          3145728   /* 64 KB per sound, enough for ~1.5 sec */
 
 /* Sound IDs */
 #define SFX_FLAP    0
@@ -108,7 +108,9 @@
 #define SFX_WEATHER 5
 #define SFX_COIN    6
 #define SFX_START   7
-#define SFX_COUNT         8
+#define SFX_THUNDER1  8
+#define SFX_THUNDER2  9
+#define SFX_COUNT         10
 
 /* ================================================================
  *  ENUMS
@@ -277,6 +279,8 @@ static const int g_sfxPriority[SFX_COUNT] = {
     3, /* SFX_WEATHER — medium  */
     4, /* SFX_COIN    — high    */
     4, /* SFX_START     */
+    5, /* SFX_THUNDER1  */
+    5, /* SFX_THUNDER2  */
 };
 /* Approximate playback length in frames at 60 FPS */
 static const int g_sfxDurFrames[SFX_COUNT] = {
@@ -288,6 +292,8 @@ static const int g_sfxDurFrames[SFX_COUNT] = {
     28, /* SFX_WEATHER ~0.46 s */
     16, /* SFX_COIN    ~0.26 s */
     84, /* SFX_START   ~1.4 s */
+    156, /* SFX_THUNDER1 */
+    45, /* SFX_THUNDER2 */
 };
 static HWAVEOUT g_sfxOut[SFX_COUNT] = {0};
 static WAVEHDR  g_sfxHdr[SFX_COUNT] = {0};
@@ -814,9 +820,11 @@ static void initSounds(void) {
       float d[] = {0.065f, 0.065f, 0.075f, 0.085f, 0.175f};
       buildWav(SFX_WEATHER, f, d, 5, 0.80f, 1); }
 
-    /* Only home page needs MCI since it's background music */
-    mciSendStringA("open \"asset/sound/home-page.wav\" type waveaudio alias home", NULL, 0, NULL);
-    mciSendStringA("play home repeat", NULL, 0, NULL);
+    loadWavToSfxBuf(SFX_THUNDER1, "asset/sound/thunder-1.wav");
+    loadWavToSfxBuf(SFX_THUNDER2, "asset/sound/thunder-2.wav");
+    
+    /* Start home page ambient music using robust PlaySound loop */
+    PlaySound("asset/sound/home-page.wav", NULL, SND_FILENAME | SND_ASYNC | SND_LOOP | SND_NODEFAULT);
 
     /* ----------------------------------------------------------------
      * SFX_FLAP — Light, airy wing beat
@@ -986,8 +994,9 @@ static void resetGame(void) {
     g_hintTimer = 360;  /* show controls box for ~6 s at 60 fps */
     initBird(); initPipes();
     g_state = STATE_PLAYING;
-    mciSendStringA("stop home", NULL, 0, NULL);
+    PlaySound(NULL, 0, 0); /* Stop home page BGM */
     playSound(SFX_START);
+    updateWeatherAmbient(); /* Start ambient BGM */
 }
 
 static void loadHighScore(void) {
@@ -1050,15 +1059,11 @@ static void updateShake(void) {
  * ================================================================ */
 
 static void updateWeatherAmbient(void) {
-    mciSendStringA("close ambient", NULL, 0, NULL);
-    if      (g_weather == WEATHER_RAIN)  mciSendStringA("open \"asset/sound/rain.wav\" type waveaudio alias ambient", NULL, 0, NULL);
-    else if (g_weather == WEATHER_NIGHT) mciSendStringA("open \"asset/sound/night-crickets.wav\" type waveaudio alias ambient", NULL, 0, NULL);
-    else if (g_weather == WEATHER_DAY)   mciSendStringA("open \"asset/sound/day-birds.wav\" type waveaudio alias ambient", NULL, 0, NULL);
-    else if (g_weather == WEATHER_SUNNY) mciSendStringA("open \"asset/sound/morning-birds.wav\" type waveaudio alias ambient", NULL, 0, NULL);
-    
-    if (g_weather != WEATHER_SNOW) {
-        mciSendStringA("play ambient repeat", NULL, 0, NULL);
-    }
+    if      (g_weather == WEATHER_RAIN)  PlaySound("asset/sound/rain.wav", NULL, SND_FILENAME | SND_ASYNC | SND_LOOP | SND_NODEFAULT);
+    else if (g_weather == WEATHER_NIGHT) PlaySound("asset/sound/night-crickets.wav", NULL, SND_FILENAME | SND_ASYNC | SND_LOOP | SND_NODEFAULT);
+    else if (g_weather == WEATHER_DAY)   PlaySound("asset/sound/day-birds.wav", NULL, SND_FILENAME | SND_ASYNC | SND_LOOP | SND_NODEFAULT);
+    else if (g_weather == WEATHER_SUNNY) PlaySound("asset/sound/morning-birds.wav", NULL, SND_FILENAME | SND_ASYNC | SND_LOOP | SND_NODEFAULT);
+    else if (g_weather == WEATHER_SNOW)  PlaySound(NULL, 0, 0);
 }
 
 
@@ -1096,12 +1101,7 @@ static void updateWeather(void) {
             g_lightning = 10;
             g_boltX = randf(80.f, WORLD_W - 80.f);
             for (int i = 0; i < 8; i++) g_boltSegs[i] = randf(-25.f, 25.f);
-            mciSendStringA("close thunder", NULL, 0, NULL);
-            if (rand() % 2 == 0)
-                mciSendStringA("open \"asset/sound/thunder-1.wav\" type waveaudio alias thunder", NULL, 0, NULL);
-            else
-                mciSendStringA("open \"asset/sound/thunder-2.wav\" type waveaudio alias thunder", NULL, 0, NULL);
-            mciSendStringA("play thunder", NULL, 0, NULL);
+            playSound(rand() % 2 == 0 ? SFX_THUNDER1 : SFX_THUNDER2);
         }
     } else { g_lightning = 0; }
 }
@@ -2828,7 +2828,6 @@ static void updatePipes(void) {
                 g_highScore = g_score;
                 saveHighScore();
             }
-            playSound(SFX_SCORE);
             triggerParticles(BIRD_X, g_bird.y);
         }
     }
