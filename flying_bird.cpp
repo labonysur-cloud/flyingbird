@@ -1,4 +1,3 @@
-
 /* Windows audio */
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -599,7 +598,7 @@ static int cohenSutherland(float *x1, float *y1, float *x2, float *y2,
         } else {
             float x = 0.f, y = 0.f;
             int outcodeOut = outcode0 ? outcode0 : outcode1;
-            
+
             /* Use dx and dy from original points so the slope never drifts! */
             if (outcodeOut & CS_TOP) {
                 x = ox1 + dx * (ymax - oy1) / dy;
@@ -1785,13 +1784,13 @@ static void drawChickGeometry(float tiltAngle, float shearFactor, int wingFrame)
         glColor3f(1.0f, 1.0f, 1.0f);
         setMat(1.0f, 1.0f, 1.0f,   0.9f, 0.9f, 0.9f,   1.0f, 1.0f, 1.0f, 80.f);
         glutSolidSphere(0.35, 20, 20); /* Bigger white eyeball */
-        
+
         /* Pupil (Black) */
         glTranslatef(0.15f, 0.05f, 0.28f);
         glColor3f(0.1f, 0.1f, 0.1f);
         setMat(0.1f, 0.1f, 0.1f,   0.0f, 0.0f, 0.0f,   0.5f, 0.5f, 0.5f, 100.f);
         glutSolidSphere(0.14, 12, 12);
-        
+
         /* Specular highlight (Tiny white dot) */
         glTranslatef(0.08f, 0.08f, 0.10f);
         glColor3f(1.0f, 1.0f, 1.0f);
@@ -1802,7 +1801,7 @@ static void drawChickGeometry(float tiltAngle, float shearFactor, int wingFrame)
     /* 3. Beak (Red protruding to the right: +X) */
     glPushMatrix();
         glTranslatef(1.05f, -0.1f, 0.45f); /* Moved further right to stick out of body */
-        
+
         /* Top lip */
         glColor3f(1.0f, 0.1f, 0.1f);
         setMat(1.0f, 0.1f, 0.1f,   0.8f, 0.05f, 0.05f,   0.4f, 0.1f, 0.1f, 30.f); /* Bright Red */
@@ -1811,7 +1810,7 @@ static void drawChickGeometry(float tiltAngle, float shearFactor, int wingFrame)
             glScalef(0.6f, 0.25f, 0.4f); /* Made beak larger */
             glutSolidSphere(1.0, 20, 20);
         glPopMatrix();
-        
+
         /* Bottom lip */
         glColor3f(0.8f, 0.05f, 0.05f);
         setMat(0.8f, 0.05f, 0.05f,  0.7f, 0.05f, 0.05f,  0.3f, 0.05f, 0.05f, 30.f); /* Slightly darker Red */
@@ -1829,8 +1828,8 @@ static void drawChickGeometry(float tiltAngle, float shearFactor, int wingFrame)
         float wingAngle = 0.0f;
         if (wingFrame == 1) wingAngle = 45.0f;
         else if (wingFrame == 2) wingAngle = -45.0f;
-        
-        glRotatef(wingAngle + tiltAngle * 0.5f, 0.0f, 0.0f, 1.0f); 
+
+        glRotatef(wingAngle + tiltAngle * 0.5f, 0.0f, 0.0f, 1.0f);
         glColor3f(1.0f, 0.5f, 0.0f);
         setMat(1.0f, 0.5f, 0.0f,  0.8f, 0.4f, 0.0f,  0.5f, 0.2f, 0.0f, 20.f); /* Orange wing */
         glScalef(0.6f, 0.35f, 0.15f); /* Made wing much larger */
@@ -2111,32 +2110,101 @@ static void drawHUD(void) {
     char buf[48];
     float cx = WORLD_W / 2.f;
 
-    /* Pipe score */
-    sprintf(buf, "%d", g_score);
-    float sw = strokeWidth(buf, 0.20f);
-    col(40, 40, 40);   strokeText(cx - sw / 2.f + 2.f, WORLD_H - 57.f - 2.f, 0.20f, buf);
-    col(255, 255, 255); strokeText(cx - sw / 2.f,        WORLD_H - 57.f,       0.20f, buf);
+    /* ── SCORE box  (top-centre, tallest) ─────────────────────── */
+    {
+        float bw = 108.f, bh = 66.f;
+        float bx = cx - bw / 2.f;
+        float by = WORLD_H - bh - 6.f;
 
-    col4(220, 220, 220, 200);
-    bitmapText(cx - 22.f, WORLD_H - 38.f, GLUT_BITMAP_HELVETICA_12, "SCORE");
+        /* drop shadow */
+        col4(0, 0, 0, 55);
+        fillRoundRect(bx + 3.f, by - 3.f, bw, bh, 9.f);
+        /* deep-purple body */
+        col4(32, 14, 76, 205);
+        fillRoundRect(bx, by, bw, bh, 9.f);
+        /* violet top accent bar */
+        col4(155, 90, 255, 235);
+        fillRect(bx + 9.f, by + bh - 5.f, bw - 18.f, 5.f);
+        /* border */
+        col4(140, 80, 255, 185);
+        outlineRect(bx, by, bw, bh, 1.5f);
+        /* "SCORE" label */
+        col4(205, 170, 255, 225);
+        bitmapText(cx - 17.f, by + bh - 17.f, GLUT_BITMAP_HELVETICA_10, "SCORE");
+        /* large number */
+        sprintf(buf, "%d", g_score);
+        float sw = strokeWidth(buf, 0.18f);
+        col4(40, 30, 60, 160);                                  /* soft shadow */
+        strokeText(cx - sw / 2.f + 1.5f, by + 7.f, 0.18f, buf);
+        col(255, 255, 255);
+        strokeText(cx - sw / 2.f, by + 8.5f, 0.18f, buf);
+    }
 
-    /* Coin score -- top right, gold colour */
-    sprintf(buf, "COINS: %d", g_coinScore);
-    col(255, 215, 0);
-    bitmapText(WORLD_W - 140.f, WORLD_H - 22.f, GLUT_BITMAP_HELVETICA_18, buf);
+    /* ── BEST box  (top-left) ──────────────────────────────────── */
+    {
+        float bw = 112.f, bh = 50.f;
+        float bx = 8.f;
+        float by = WORLD_H - bh - 8.f;
 
-    /* Best score -- top left */
-    sprintf(buf, "BEST: %d", g_highScore);
-    col(200, 220, 255);
-    bitmapText(10.f, WORLD_H - 22.f, GLUT_BITMAP_HELVETICA_18, buf);
+        col4(0, 0, 0, 50);
+        fillRoundRect(bx + 3.f, by - 3.f, bw, bh, 8.f);
+        col4(6, 44, 108, 200);                  /* ocean blue */
+        fillRoundRect(bx, by, bw, bh, 8.f);
+        col4(55, 148, 255, 235);                /* sky-blue accent */
+        fillRect(bx + 8.f, by + bh - 5.f, bw - 16.f, 5.f);
+        col4(50, 135, 240, 180);
+        outlineRect(bx, by, bw, bh, 1.5f);
+        col4(130, 200, 255, 225);
+        bitmapText(bx + 9.f, by + bh - 17.f, GLUT_BITMAP_HELVETICA_10, "BEST");
+        sprintf(buf, "%d", g_highScore);
+        col(200, 232, 255);
+        bitmapText(bx + 9.f, by + 7.f, GLUT_BITMAP_HELVETICA_18, buf);
+    }
 
-    /* Difficulty label */
-    const char *dlbl = (g_difficulty == DIFF_EASY) ? "EASY" :
-                       (g_difficulty == DIFF_HARD)  ? "HARD" : "NORMAL";
-    col(255, 255, 255);
-    strokeText(10.f, WORLD_H - 55.f, 0.08f, dlbl);
+    /* ── Difficulty pill  (small tag below BEST box) ───────────── */
+    {
+        const char *dlbl = (g_difficulty == DIFF_EASY) ? "EASY" :
+                           (g_difficulty == DIFF_HARD) ? "HARD" : "NORMAL";
+        int pr, pg, pb;
+        if      (g_difficulty == DIFF_EASY) { pr = 22;  pg = 115; pb = 45;  }
+        else if (g_difficulty == DIFF_HARD) { pr = 150; pg = 28;  pb = 28;  }
+        else                                { pr = 155; pg = 100; pb = 8;   }
 
-    /* Coin collect popup */
+        float bw = 72.f, bh = 17.f;
+        float bx = 8.f;
+        float by = WORLD_H - 50.f - 8.f - bh - 4.f;  /* 4 px below BEST box */
+
+        col4(pr, pg, pb, 210);
+        fillRoundRect(bx, by, bw, bh, 5.f);
+        col4(pr + 70, pg + 70, pb + 70, 200);
+        outlineRect(bx, by, bw, bh, 1.f);
+        col(255, 255, 255);
+        float dw = strokeWidth(dlbl, 0.052f);
+        strokeText(bx + bw / 2.f - dw / 2.f, by + 2.f, 0.052f, dlbl);
+    }
+
+    /* ── COINS box  (top-right, clear of close button) ─────────── */
+    {
+        float bw = 115.f, bh = 50.f;
+        float bx = WORLD_W - (float)CLOSE_BTN_SIZE - 10.f - bw - 4.f;
+        float by = WORLD_H - bh - 8.f;
+
+        col4(0, 0, 0, 50);
+        fillRoundRect(bx + 3.f, by - 3.f, bw, bh, 8.f);
+        col4(78, 50, 4, 200);                   /* dark amber */
+        fillRoundRect(bx, by, bw, bh, 8.f);
+        col4(218, 168, 0, 235);                 /* gold accent */
+        fillRect(bx + 8.f, by + bh - 5.f, bw - 16.f, 5.f);
+        col4(200, 155, 0, 180);
+        outlineRect(bx, by, bw, bh, 1.5f);
+        col4(255, 215, 55, 225);
+        bitmapText(bx + 9.f, by + bh - 17.f, GLUT_BITMAP_HELVETICA_10, "COINS");
+        sprintf(buf, "%d", g_coinScore);
+        col(255, 222, 40);
+        bitmapText(bx + 9.f, by + 7.f, GLUT_BITMAP_HELVETICA_18, buf);
+    }
+
+    /* ── Coin collect popup ─────────────────────────────────────── */
     if (g_coinPopupTimer > 0) {
         float alpha = clampf((float)g_coinPopupTimer / 40.f, 0.f, 1.f);
         float rise  = (40 - g_coinPopupTimer) * 0.8f;
@@ -2356,7 +2424,7 @@ static void drawTitleScreen(void) {
     /* Beautiful Solid 2.5D Title Text */
     float tY = WORLD_H * 0.72f; /* Kept perfectly static */
     float sc = 0.38f; /* Slightly larger and bolder scale */
-    
+
     // We use GLUT_STROKE_ROMAN which is proportionally spaced and elegant
     // Calculate widths manually for centering
     float w1 = 0; for(const char *c = "FLYING"; *c; c++) w1 += glutStrokeWidth(GLUT_STROKE_ROMAN, *c); w1 *= sc;
@@ -2366,7 +2434,7 @@ static void drawTitleScreen(void) {
     float x2 = WORLD_W / 2.f - w2 / 2.f;
     float y1 = tY;
     float y2 = tY - 65.f;
-    
+
     // Enable blending for smooth antialiased lines
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -2389,13 +2457,13 @@ static void drawTitleScreen(void) {
     for (int i = layers; i >= 1; i--) {
         float offset = i * 1.0f;
         float depth = (float)i / layers; // 1.0 (back) to 0.0 (front)
-        
+
         // Golden/Orange side for FLYING
         col(180 - depth * 100, 100 - depth * 60, 0);
         glPushMatrix(); glTranslatef(x1 + offset, y1 - offset, 0.f); glScalef(sc, sc, 1.f);
         for(const char *c = "FLYING"; *c; c++) glutStrokeCharacter(GLUT_STROKE_ROMAN, *c);
         glPopMatrix();
-        
+
         // Green/Teal side for BIRD
         col(0, 140 - depth * 80, 100 - depth * 60);
         glPushMatrix(); glTranslatef(x2 + offset, y2 - offset, 0.f); glScalef(sc, sc, 1.f);
@@ -2410,7 +2478,7 @@ static void drawTitleScreen(void) {
     glPushMatrix(); glTranslatef(x1, y1, 0.f); glScalef(sc, sc, 1.f);
     for(const char *c = "FLYING"; *c; c++) glutStrokeCharacter(GLUT_STROKE_ROMAN, *c);
     glPopMatrix();
-    
+
     // BIRD - Vibrant Lime Green
     col(80, 255, 100);
     glPushMatrix(); glTranslatef(x2, y2, 0.f); glScalef(sc, sc, 1.f);
@@ -2619,7 +2687,7 @@ static void drawGameOverScreen(void) {
 
         float x1 = WORLD_W / 2.f - w1 / 2.f;
         float y1 = 330.f; /* Centered nicely */
-        
+
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         glEnable(GL_LINE_SMOOTH);
@@ -2637,7 +2705,7 @@ static void drawGameOverScreen(void) {
         for (int i = layers; i >= 1; i--) {
             float offset = i * 1.0f;
             float depth = (float)i / layers; // 1.0 (back) to 0.0 (front)
-            
+
             // Dark red to bright red
             col(150 - depth * 80, 0, 0);
             glPushMatrix(); glTranslatef(x1 + offset, y1 - offset, 0.f); glScalef(sc, sc, 1.f);
