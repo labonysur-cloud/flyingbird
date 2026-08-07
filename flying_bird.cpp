@@ -13,9 +13,7 @@
 #include <string.h>
 #include <time.h>
 
-/* ================================================================
- *  CONSTANTS
- * ================================================================ */
+// --- CONSTANTS ---
 
 #define WIN_W            800
 #define WIN_H            600
@@ -98,7 +96,7 @@
 /* Menu button — top-left corner */
 #define MENU_BTN_SIZE     30.0f
 #define MENU_BTN_X        10.0f
-#define MENU_BTN_Y       (WORLD_H - MENU_BTN_SIZE - 8.0f)
+#define MENU_BTN_Y       (WORLD_H - MENU_BTN_SIZE - 65.0f)
 
 /* Sound sample rate */
 #define SFX_RATE         22050
@@ -113,9 +111,7 @@
 #define SFX_THUNDER2  5
 #define SFX_COUNT         6
 
-/* ================================================================
- *  ENUMS
- * ================================================================ */
+// --- ENUMS ---
 
 typedef enum { STATE_TITLE, STATE_PLAYING, STATE_PAUSED, STATE_GAMEOVER } GameState;
 
@@ -133,9 +129,7 @@ typedef enum {
     DIFF_HARD = 2
 } Difficulty;
 
-/* ================================================================
- *  STRUCTS
- * ================================================================ */
+// --- STRUCTS ---
 
 typedef struct { float x, y, scale, speed; int layer; } Cloud;
 typedef struct { float x, gapCenterY; int scored; } Pipe;
@@ -192,9 +186,7 @@ static const WeatherTheme g_themes[5] = {
       0.80f,0.88f,0.98f,  "Snow", "Freezing cold, snowflakes" }
 };
 
-/* ================================================================
- *  GLOBALS
- * ================================================================ */
+// --- GLOBALS ---
 
 /* Game state */
 static GameState  g_state     = STATE_TITLE;
@@ -268,9 +260,7 @@ static int         g_winH = WIN_H;
 
 /* Sound system uses mciSendString directly for all BGM and SFX */
 
-/* ================================================================
- *  UTILITY
- * ================================================================ */
+// --- UTILITY ---
 
 static float lerpf(float a, float b, float t) { return a + (b - a) * t; }
 
@@ -297,9 +287,7 @@ static void screenToWorld(int sx, int sy, float *wx, float *wy) {
     *wy = ry * WORLD_H;
 }
 
-/* ================================================================
- *  DRAWING PRIMITIVES
- * ================================================================ */
+// --- DRAWING PRIMITIVES ---
 
 static void col(int r, int g, int b)
     { glColor3f(r / 255.f, g / 255.f, b / 255.f); }
@@ -373,16 +361,12 @@ static void fillEllipse(float cx, float cy, float rx, float ry, int segs) {
     glPopMatrix();
 }
 
-/* ================================================================
- *  ALGORITHM 1 : DDA LINE  (Digital Differential Analyser)
- *
- *  Principle: Compute the number of steps = max(|dx|,|dy|),
- *  then increment x and y by dx/steps and dy/steps each step.
- *  This guarantees exactly one pixel plotted per step.
- *
- *  Usage in this project:
- *    - Draws the four outline edges of every pipe body and cap.
- * ================================================================ */
+// --- ALGORITHM 1 : DDA LINE  (Digital Differential Analyser) ---
+// *  Principle: Compute the number of steps = max(|dx|,|dy|),
+// then increment x and y by dx/steps and dy/steps each step.
+// This guarantees exactly one pixel plotted per step.
+// *  Usage in this project:
+// - Draws the four outline edges of every pipe body and cap.
 static void ddaLine(float x1, float y1, float x2, float y2) {
     float dx    = x2 - x1;
     float dy    = y2 - y1;
@@ -408,18 +392,14 @@ static void ddaOutlineRect(float x, float y, float w, float h) {
     ddaLine(x,     y + h, x,     y    );   /* left   */
 }
 
-/* ================================================================
- *  ALGORITHM 2 : MIDPOINT CIRCLE  (Bresenham's Circle Algorithm)
- *
- *  Principle: Start at (0, r). Use an integer decision variable
- *  d = 1 - r to choose between East (x++) and South-East
- *  (x++, y--) at each step. Exploits 8-fold symmetry so only
- *  one octant needs to be computed.
- *
- *  Usage in this project:
- *    - Draws the bird's circular body outline every frame.
- *    - Also used for the semi-transparent reflection outline.
- * ================================================================ */
+// --- ALGORITHM 2 : MIDPOINT CIRCLE  (Bresenham's Circle Algorithm) ---
+// *  Principle: Start at (0, r). Use an integer decision variable
+// d = 1 - r to choose between East (x++) and South-East
+// (x++, y--) at each step. Exploits 8-fold symmetry so only
+// one octant needs to be computed.
+// *  Usage in this project:
+// - Draws the bird's circular body outline every frame.
+// - Also used for the semi-transparent reflection outline.
 static void midpointCircle(float cx, float cy, int r) {
     int x = 0, y = r;
     int d = 1 - r;          /* Initial decision variable */
@@ -441,17 +421,13 @@ static void midpointCircle(float cx, float cy, int r) {
     glEnd();
 }
 
-/* ================================================================
- *  ALGORITHM 3 : BRESENHAM LINE  (integer error-accumulation)
- *
- *  Principle: Maintain an error term err = dx - dy. Each step,
- *  advance in the major axis and conditionally step in the minor
- *  axis when the accumulated error exceeds 0. No floating-point
- *  arithmetic needed.
- *
- *  Usage in this project:
- *    - Draws the lightning bolt zigzag segments in RAIN mode.
- * ================================================================ */
+// --- ALGORITHM 3 : BRESENHAM LINE  (integer error-accumulation) ---
+// *  Principle: Maintain an error term err = dx - dy. Each step,
+// advance in the major axis and conditionally step in the minor
+// axis when the accumulated error exceeds 0. No floating-point
+// arithmetic needed.
+// *  Usage in this project:
+// - Draws the lightning bolt zigzag segments in RAIN mode.
 static void bresenhamLine(int x1, int y1, int x2, int y2) {
     int dx  = abs(x2 - x1);
     int dy  = abs(y2 - y1);
@@ -469,13 +445,10 @@ static void bresenhamLine(int x1, int y1, int x2, int y2) {
     glEnd();
 }
 
-/* ================================================================
- *  ALGORITHM 4 : CUBIC BEZIER CURVE
- *
- *  Principle: Interpolate between 4 control points P0, P1, P2, P3.
- *  Formula: B(t) = (1-t)^3*P0 + 3(1-t)^2*t*P1 + 3(1-t)*t^2*P2 + t^3*P3
- *  Usage: Animated water wave on the ground.
- * ================================================================ */
+// --- ALGORITHM 4 : CUBIC BEZIER CURVE ---
+// *  Principle: Interpolate between 4 control points P0, P1, P2, P3.
+// Formula: B(t) = (1-t)^3*P0 + 3(1-t)^2*t*P1 + 3(1-t)*t^2*P2 + t^3*P3
+// Usage: Animated water wave on the ground.
 static void bezierPoint(float t, float *px, float *py,
                         float p0x, float p0y,
                         float p1x, float p1y,
@@ -513,13 +486,10 @@ static void drawBezierWave(void) {
     glLineWidth(2.0f);
 }
 
-/* ================================================================
- *  ALGORITHM 5 : COHEN-SUTHERLAND LINE CLIPPING
- *
- *  Principle: Clips a line segment against a rectangular window using
- *  outcodes (LEFT=1, RIGHT=2, BOTTOM=4, TOP=8).
- *  Usage: Clip rain drops against the ground boundary.
- * ================================================================ */
+// --- ALGORITHM 5 : COHEN-SUTHERLAND LINE CLIPPING ---
+// *  Principle: Clips a line segment against a rectangular window using
+// outcodes (LEFT=1, RIGHT=2, BOTTOM=4, TOP=8).
+// Usage: Clip rain drops against the ground boundary.
 #define CS_INSIDE 0
 #define CS_LEFT   1
 #define CS_RIGHT  2
@@ -589,9 +559,7 @@ static int cohenSutherland(float *x1, float *y1, float *x2, float *y2,
     return accept;
 }
 
-/* ================================================================
- *  TEXT
- * ================================================================ */
+// --- TEXT ---
 
 static void bitmapText(float x, float y, void *font, const char *s) {
     glRasterPos2f(x, y);
@@ -612,23 +580,17 @@ static float strokeWidth(const char *s, float scale) {
     return w * scale;
 }
 
-/* ================================================================
- *  SOUND SYSTEM
- *
- *  Generates PCM WAV data in memory and plays via PlaySound.
- *  No external WAV files required.
- * ================================================================ */
+// --- SOUND SYSTEM ---
+// *  Generates PCM WAV data in memory and plays via PlaySound.
+// No external WAV files required.
 
 #define PI2  6.28318530f
 
-/* ================================================================
- *  ASYNC AUDIO SYSTEM (SINGLE PERSISTENT WORKER THREAD)
- *
- *  MCI playback is tied to the calling thread. If a thread exits,
- *  its playback is aborted. Therefore, we use a single persistent
- *  worker thread and a command queue to handle all audio without
- *  lagging the main game loop and without sounds cutting off.
- * ================================================================ */
+// --- ASYNC AUDIO SYSTEM (SINGLE PERSISTENT WORKER THREAD) ---
+// *  MCI playback is tied to the calling thread. If a thread exits,
+// its playback is aborted. Therefore, we use a single persistent
+// worker thread and a command queue to handle all audio without
+// lagging the main game loop and without sounds cutting off.
 
 #define MAX_AUDIO_CMDS 256
 static char g_audioQueue[MAX_AUDIO_CMDS][128];
@@ -702,37 +664,29 @@ static void playSound(int id) {
     switch (id) {
         case SFX_FLAP: {
             static int flapIdx = 0;
-            snprintf(cmd, sizeof(cmd), "seek flap%d to start", flapIdx);
-            sendAudioCmd(cmd);
-            snprintf(cmd, sizeof(cmd), "play flap%d", flapIdx);
+            snprintf(cmd, sizeof(cmd), "play flap%d from 0", flapIdx);
             sendAudioCmd(cmd);
             flapIdx = (flapIdx + 1) % 3;
             break;
         }
         case SFX_COIN: {
             static int coinIdx = 0;
-            snprintf(cmd, sizeof(cmd), "seek coin%d to start", coinIdx);
-            sendAudioCmd(cmd);
-            snprintf(cmd, sizeof(cmd), "play coin%d", coinIdx);
+            snprintf(cmd, sizeof(cmd), "play coin%d from 0", coinIdx);
             sendAudioCmd(cmd);
             coinIdx = (coinIdx + 1) % 2;
             break;
         }
         case SFX_DIE:
-            sendAudioCmd("seek sfx_die to start");
-            sendAudioCmd("play sfx_die");
+            sendAudioCmd("play sfx_die from 0");
             break;
         case SFX_START:
-            sendAudioCmd("seek sfx_start to start");
-            sendAudioCmd("play sfx_start");
+            sendAudioCmd("play sfx_start from 0");
             break;
         case SFX_THUNDER1:
-            sendAudioCmd("seek sfx_thunder1 to start");
-            sendAudioCmd("play sfx_thunder1");
+            sendAudioCmd("play sfx_thunder1 from 0");
             break;
         case SFX_THUNDER2:
-            sendAudioCmd("seek sfx_thunder2 to start");
-            sendAudioCmd("play sfx_thunder2");
+            sendAudioCmd("play sfx_thunder2 from 0");
             break;
     }
 }
@@ -765,9 +719,7 @@ static void initSounds(void) {
     sendAudioCmd("play home");
 }
 
-/* ================================================================
- *  INIT: SUB-SYSTEMS
- * ================================================================ */
+// --- INIT: SUB-SYSTEMS ---
 
 static void initClouds(void) {
     for (int i = 0; i < CLOUD_COUNT; i++) {
@@ -844,9 +796,7 @@ static void initPipes(void) {
     }
 }
 
-/* ================================================================
- *  GAME LIFECYCLE
- * ================================================================ */
+// --- GAME LIFECYCLE ---
 
 static void updateWeatherAmbient(void);
 
@@ -917,9 +867,7 @@ static void init(void) {
     g_hoveredPlayAgain = 0;
 }
 
-/* ================================================================
- *  SCREEN SHAKE
- * ================================================================ */
+// --- SCREEN SHAKE ---
 
 static void triggerShake(int t) { g_shakeTicks = t; }
 
@@ -931,9 +879,7 @@ static void updateShake(void) {
     } else { g_shakeX = g_shakeY = 0.f; }
 }
 
-/* ================================================================
- *  WEATHER SYSTEM
- * ================================================================ */
+// --- WEATHER SYSTEM ---
 
 static void updateWeatherAmbient(void) {
     sendAudioCmd("close ambient");
@@ -984,9 +930,7 @@ static void updateWeather(void) {
     } else { g_lightning = 0; }
 }
 
-/* ================================================================
- *  DRAW: SKY BACKGROUND
- * ================================================================ */
+// --- DRAW: SKY BACKGROUND ---
 
 static void drawBackground(void) {
     const WeatherTheme *t = &g_themes[g_weather];
@@ -1001,9 +945,7 @@ static void drawBackground(void) {
     glEnd();
 }
 
-/* ================================================================
- *  DRAW: SUN  (Day + Sunny)
- * ================================================================ */
+// --- DRAW: SUN  (Day + Sunny) ---
 
 static void drawSun(void) {
     float cx = WORLD_W - 90.f, cy = WORLD_H - 80.f, r = 32.f;
@@ -1035,9 +977,7 @@ static void drawSun(void) {
     col(255, 255, 220); fillCircle(cx - r * 0.25f, cy + r * 0.25f, r * 0.4f, 16);
 }
 
-/* ================================================================
- *  DRAW: MOON  (Night)
- * ================================================================ */
+// --- DRAW: MOON  (Night) ---
 
 static void drawMoon(void) {
     float cx = WORLD_W - 95.f, cy = WORLD_H - 75.f, r = 26.f;
@@ -1057,9 +997,7 @@ static void drawMoon(void) {
     fillCircle(cx + r * 0.40f, cy, r * 0.82f, 18);
 }
 
-/* ================================================================
- *  DRAW: STARS  (Night)
- * ================================================================ */
+// --- DRAW: STARS  (Night) ---
 
 static void drawStars(void) {
     for (int i = 0; i < STAR_COUNT; i++) {
@@ -1078,9 +1016,7 @@ static void drawStars(void) {
     }
 }
 
-/* ================================================================
- *  DRAW: RAIN
- * ================================================================ */
+// --- DRAW: RAIN ---
 
 static void drawRain(void) {
     glLineWidth(1.5f);
@@ -1101,9 +1037,7 @@ static void drawRain(void) {
     glLineWidth(2.f);
 }
 
-/* ================================================================
- *  DRAW: LIGHTNING
- * ================================================================ */
+// --- DRAW: LIGHTNING ---
 
 static void drawLightning(void) {
     if (g_lightning <= 0) return;
@@ -1135,9 +1069,7 @@ static void drawLightning(void) {
     glPointSize(1.0f);
 }
 
-/* ================================================================
- *  DRAW: FOG  (Rain)
- * ================================================================ */
+// --- DRAW: FOG  (Rain) ---
 
 static void drawFog(void) {
     for (int i = 0; i < 3; i++) {
@@ -1148,9 +1080,7 @@ static void drawFog(void) {
     col4(140, 155, 170, 16); fillRect(0, 0, WORLD_W, WORLD_H);
 }
 
-/* ================================================================
- *  DRAW: BEAUTIFUL CLOUDS  (8-blob per cloud)
- * ================================================================ */
+// --- DRAW: BEAUTIFUL CLOUDS  (8-blob per cloud) ---
 
 static void drawCloud(float cx, float cy, float sc) {
     static const float body[7][4] = {
@@ -1192,9 +1122,7 @@ static void drawClouds(void) {
         drawCloud(g_clouds[i].x, g_clouds[i].y, g_clouds[i].scale);
 }
 
-/* ================================================================
- *  SNOW UPDATE & DRAW
- * ================================================================ */
+// --- SNOW UPDATE & DRAW ---
 
 static void updateSnow(void) {
     for (int i = 0; i < 180; i++) {
@@ -1322,7 +1250,7 @@ static void drawTrees(void) {
 }
 
 static void drawRainbow(void) {
-    float cx = WORLD_W * 0.8f;
+    float cx = WORLD_W * 0.65f; // Place rainbow behind buildings
     float cy = GROUND_Y + GROUND_H;
     float colors[6][3] = {
         {255.f,  0.f,   0.f},
@@ -1374,9 +1302,7 @@ static void drawCitySilhouette(void) {
     }
 }
 
-/* ================================================================
- *  DRAW: GROUND
- * ================================================================ */
+// --- DRAW: GROUND ---
 
 static void drawGround(void) {
     float grassH = GROUND_H * GRASS_H_RATIO;
@@ -1421,12 +1347,9 @@ static void drawGround(void) {
     }
 }
 
-/* ================================================================
- *  3D PROJECTION HELPERS
- *
- *  begin3D / end3D switch from global glOrtho to gluPerspective
- *  (same approach as the lab code) for 3D element rendering.
- * ================================================================ */
+// --- 3D PROJECTION HELPERS ---
+// *  begin3D / end3D switch from global glOrtho to gluPerspective
+// (same approach as the lab code) for 3D element rendering.
 
 static void begin3D(float worldX, float worldY, int vpSize) {
     float sx = g_vpX + (worldX / WORLD_W) * (float)g_vpW;
@@ -1451,16 +1374,12 @@ static void end3D(void) {
     glViewport(g_vpX, g_vpY, g_vpW, g_vpH);
 }
 
-/* ================================================================
- *  DRAW: 3D WHITE FLUFFY CHICK
- *
- *  Matches the reference image: round white body, big black eyes
- *  with specular highlights, small golden beak, short orange legs.
- *
- *  Technique: gluPerspective + gluLookAt + GL_LIGHTING (lab style)
- *    glRotatef  -- Z-axis tilt based on velocity
- *    glTranslatef / glScalef -- position all sub-parts
- * ================================================================ */
+// --- DRAW: 3D WHITE FLUFFY CHICK ---
+// *  Matches the reference image: round white body, big black eyes
+// with specular highlights, small golden beak, short orange legs.
+// *  Technique: gluPerspective + gluLookAt + GL_LIGHTING (lab style)
+// glRotatef  -- Z-axis tilt based on velocity
+// glTranslatef / glScalef -- position all sub-parts
 
 static void setupChickLight(void) {
     GLfloat pos[]  = { -2.0f,  3.0f,  5.0f,  1.0f };
@@ -1598,15 +1517,12 @@ static void drawBird(void) {
     glPopMatrix();
 }
 
-/* ================================================================
- *  DRAW: BIRD REFLECTION  (2D Reflection Transformation)
- *
- *  Reflects the bird about the grass surface line (y = grassY).
- *  Formula:  y' = 2 * grassY - y
- *  Implemented via glScalef(1, -1, 1) after translating the
- *  coordinate origin to the reflection axis (grassY).
- *  Demonstrates the REFLECTION transformation from the syllabus.
- * ================================================================ */
+// --- DRAW: BIRD REFLECTION  (2D Reflection Transformation) ---
+// *  Reflects the bird about the grass surface line (y = grassY).
+// Formula:  y' = 2 * grassY - y
+// Implemented via glScalef(1, -1, 1) after translating the
+// coordinate origin to the reflection axis (grassY).
+// Demonstrates the REFLECTION transformation from the syllabus.
 static void drawBirdReflection(void) {
     float grassY = GROUND_Y + GROUND_H * GRASS_H_RATIO;
     float reflY  = 2.f * grassY - g_bird.y;
@@ -1633,13 +1549,10 @@ static void drawBirdReflection(void) {
     glPopMatrix();
 }
 
-/* ================================================================
- *  DRAW: SCORE SPARKLE PARTICLES  (GL_POINTS primitive demo)
- *
- *  Each live particle is rendered as a single GL_POINT with an
- *  alpha value tied to its remaining life — clearly demonstrating
- *  the GL_POINTS primitive type as required by the rubric.
- * ================================================================ */
+// --- DRAW: SCORE SPARKLE PARTICLES  (GL_POINTS primitive demo) ---
+// *  Each live particle is rendered as a single GL_POINT with an
+// alpha value tied to its remaining life — clearly demonstrating
+// the GL_POINTS primitive type as required by the rubric.
 static void drawParticles(void) {
     glPointSize(5.5f);
     glBegin(GL_POINTS);
@@ -1655,9 +1568,7 @@ static void drawParticles(void) {
     glPointSize(1.0f);
 }
 
-/* ================================================================
- *  DRAW: PIPES
- * ================================================================ */
+// --- DRAW: PIPES ---
 
 static void drawSinglePipe(float x, float y1, float y2, int flipped) {
     float dark  = g_themes[g_weather].darkness;
@@ -1698,13 +1609,10 @@ static void drawSinglePipe(float x, float y1, float y2, int flipped) {
     }
 }
 
-/* ================================================================
- *  DRAW: 3D SPINNING COIN
- *
- *  Uses begin3D/end3D (gluPerspective + gluLookAt) with GL_LIGHTING.
- *  Y-axis rotation (glRotatef) creates the spinning disc illusion.
- *  The coin is a glutSolidSphere flattened by glScalef on Z axis.
- * ================================================================ */
+// --- DRAW: 3D SPINNING COIN ---
+// *  Uses begin3D/end3D (gluPerspective + gluLookAt) with GL_LIGHTING.
+// Y-axis rotation (glRotatef) creates the spinning disc illusion.
+// The coin is a glutSolidSphere flattened by glScalef on Z axis.
 static void drawSingleCoin(float worldX, float worldY, float spinAngle) {
     begin3D(worldX, worldY, 26);
     glEnable(GL_DEPTH_TEST);
@@ -1765,14 +1673,11 @@ static void drawPipes(void) {
     }
 }
 
-/* ================================================================
- *  DRAW: CONTROLS HINT BOX
- *
- *  Appears when a new game starts. Stays fully opaque for the first
- *  280 frames then smoothly fades out over the last 80 frames.
- *  Shows all key bindings inside a premium dark-glass panel with
- *  golden key badges, a blue accent header and a pulsing glow.
- * ================================================================ */
+// --- DRAW: CONTROLS HINT BOX ---
+// *  Appears when a new game starts. Stays fully opaque for the first
+// 280 frames then smoothly fades out over the last 80 frames.
+// Shows all key bindings inside a premium dark-glass panel with
+// golden key badges, a blue accent header and a pulsing glow.
 static void drawControlsBox(void) {
     float alpha = 1.0f;   /* always fully visible on the title screen */
 
@@ -1837,9 +1742,7 @@ static void drawControlsBox(void) {
     }
 }
 
-/* ================================================================
- *  DRAW: HUD
- * ================================================================ */
+// --- DRAW: HUD ---
 
 static void drawHUD(void) {
     char buf[48];
@@ -1948,9 +1851,7 @@ static void drawHUD(void) {
     /* controls hint box is shown on the title screen only */
 }
 
-/* ================================================================
- *  DRAW: WEATHER SELECTOR (title screen interactive buttons)
- * ================================================================ */
+// --- DRAW: WEATHER SELECTOR (title screen interactive buttons) ---
 
 /* Draw a small icon for each weather mode inside a button */
 static void drawWeatherIcon(WeatherMode w, float cx, float cy) {
@@ -2149,9 +2050,7 @@ static void drawWeatherSelector(void) {
     strokeText(WORLD_W / 2.f - dw / 2.f, WBTN_Y - 22.f, 0.055f, desc);
 }
 
-/* ================================================================
- *  DRAW: TITLE SCREEN
- * ================================================================ */
+// --- DRAW: TITLE SCREEN ---
 
 static void drawTitleScreen(void) {
     /* Beautiful Solid 2.5D Title Text */
@@ -2286,11 +2185,9 @@ static void drawTitleScreen(void) {
 
 }
 
-/* ================================================================
- *  DRAW: PLAY AGAIN BUTTON
- *  Shown after g_gameOverDelay reaches 0.
- *  Shows a progress indicator while waiting.
- * ================================================================ */
+// --- DRAW: PLAY AGAIN BUTTON ---
+// Shown after g_gameOverDelay reaches 0.
+// Shows a progress indicator while waiting.
 
 static void drawPlayAgainButton(float px, float py) {
     float btnW = PLAY_BTN_W, btnH = PLAY_BTN_H;
@@ -2356,9 +2253,7 @@ static void drawPlayAgainButton(float px, float py) {
     }
 }
 
-/* ================================================================
- *  DRAW: GAME OVER SCREEN
- * ================================================================ */
+// --- DRAW: GAME OVER SCREEN ---
 
 static void drawMedal(int score, float cx, float cy) {
     if (score < 5) return;
@@ -2465,9 +2360,7 @@ static void drawGameOverScreen(void) {
     }
 }
 
-/* ================================================================
- *  DRAW: PAUSE
- * ================================================================ */
+// --- DRAW: PAUSE ---
 
 static void drawPauseScreen(void) {
     col4(0, 0, 0, 80); fillRect(0, 0, WORLD_W, WORLD_H);
@@ -2479,9 +2372,7 @@ static void drawPauseScreen(void) {
                GLUT_BITMAP_HELVETICA_18, "Press P to Resume");
 }
 
-/* ================================================================
- *  DRAW: WEATHER NAME ANNOUNCEMENT
- * ================================================================ */
+// --- DRAW: WEATHER NAME ANNOUNCEMENT ---
 
 static void drawWeatherName(void) {
     if (g_weatherNameTimer <= 0) return;
@@ -2496,9 +2387,7 @@ static void drawWeatherName(void) {
     strokeText(WORLD_W / 2.f - tw / 2.f, ppy + 16.f, 0.16f, name);
 }
 
-/* ================================================================
- *  DRAW: CLOSE BUTTON  (top-right corner, always visible)
- * ================================================================ */
+// --- DRAW: CLOSE BUTTON  (top-right corner, always visible) ---
 
 static void drawCloseButton(void) {
     float bx  = CLOSE_BTN_X;
@@ -2537,9 +2426,7 @@ static void drawCloseButton(void) {
     glLineWidth(2.f);
 }
 
-/* ================================================================
- *  DRAW: MENU BUTTON  (top-left corner, expandable)
- * ================================================================ */
+// --- DRAW: MENU BUTTON  (top-left corner, expandable) ---
 
 static void drawMenuButton(void) {
     float bx  = MENU_BTN_X;
@@ -2615,9 +2502,7 @@ static void drawMenuButton(void) {
     glLineWidth(2.f);
 }
 
-/* ================================================================
- *  DISPLAY CALLBACK
- * ================================================================ */
+// --- DISPLAY CALLBACK ---
 
 static void display(void) {
     glClear(GL_COLOR_BUFFER_BIT);
@@ -2677,9 +2562,7 @@ static void display(void) {
     glutSwapBuffers();
 }
 
-/* ================================================================
- *  COLLISION DETECTION
- * ================================================================ */
+// --- COLLISION DETECTION ---
 
 static int checkCollision(void) {
     float bx = BIRD_X, by = g_bird.y, br = BIRD_RADIUS - 4.f;
@@ -2698,9 +2581,7 @@ static int checkCollision(void) {
     return 0;
 }
 
-/* ================================================================
- *  PARTICLE SYSTEM — trigger, update, (draw is in draw section)
- * ================================================================ */
+// --- PARTICLE SYSTEM — trigger, update, (draw is in draw section) ---
 
 /* Spawn a radial burst of 20 sparkle particles at world pos (x,y). */
 static void triggerParticles(float x, float y) {
@@ -2737,9 +2618,7 @@ static void updateParticles(void) {
     }
 }
 
-/* ================================================================
- *  UPDATE FUNCTIONS
- * ================================================================ */
+// --- UPDATE FUNCTIONS ---
 
 static void updateBird(void) {
     g_bird.vy += GRAVITY;
@@ -2816,9 +2695,7 @@ static void updateRainDrops(void) {
     }
 }
 
-/* ================================================================
- *  MASTER UPDATE
- * ================================================================ */
+// --- MASTER UPDATE ---
 
 static void updateGame(void) {
     g_frame++;
@@ -2898,20 +2775,15 @@ static void updateGame(void) {
     if (g_flashTicks > 0) g_flashTicks--;
 }
 
-/* ================================================================
- *  BGM LOOP MAINTENANCE
- *
- *  MCI's 'repeat' flag can silently stop working on some Windows
- *  builds. This function is called every frame and polls the current
- *  BGM / ambient status every 90 frames (~1.5 s at 60 fps). If the
- *  track has stopped playing it restarts it from the beginning.
- *  This makes looping rock-solid regardless of MCI implementation.
- * ================================================================ */
+// --- BGM LOOP MAINTENANCE ---
+// *  MCI's 'repeat' flag can silently stop working on some Windows
+// builds. This function is called every frame and polls the current
+// BGM / ambient status every 90 frames (~1.5 s at 60 fps). If the
+// track has stopped playing it restarts it from the beginning.
+// This makes looping rock-solid regardless of MCI implementation.
 /* Timer maintenance moved to audio worker thread timeout */
 
-/* ================================================================
- *  TIMER
- * ================================================================ */
+// --- TIMER ---
 
 static void timerCallback(int v) {
     (void)v;
@@ -2920,9 +2792,7 @@ static void timerCallback(int v) {
     glutTimerFunc(FRAME_MS, timerCallback, 0);
 }
 
-/* ================================================================
- *  FLAP
- * ================================================================ */
+// --- FLAP ---
 
 static void doFlap(void) {
     if (g_state == STATE_TITLE) {
@@ -2944,10 +2814,8 @@ static void doFlap(void) {
     }
 }
 
-/* ================================================================
- *  HOVER CHECK HELPER
- *  Returns which weather button (0-3) the mouse is over, or -1.
- * ================================================================ */
+// --- HOVER CHECK HELPER ---
+// Returns which weather button (0-3) the mouse is over, or -1.
 
 static int hoveredDiffButton(void) {
     float startX = WORLD_W / 2.f - 170.f;
@@ -2976,9 +2844,7 @@ static int hoveredPlayAgainButton(void) {
     return isInRect(g_mouseX, g_mouseY, btnX, btnY, btnW, btnH);
 }
 
-/* ================================================================
- *  KEYBOARD INPUT
- * ================================================================ */
+// --- KEYBOARD INPUT ---
 
 static void keyboardInput(unsigned char key, int x, int y) {
     (void)x; (void)y;
@@ -3014,9 +2880,7 @@ static void specialKeys(int key, int x, int y) {
     }
 }
 
-/* ================================================================
- *  MOUSE INPUT  (click)
- * ================================================================ */
+// --- MOUSE INPUT  (click) ---
 
 static void mouseInput(int button, int state, int x, int y) {
     if (button != GLUT_LEFT_BUTTON || state != GLUT_DOWN) return;
@@ -3064,9 +2928,7 @@ static void mouseInput(int button, int state, int x, int y) {
     }
 }
 
-/* ================================================================
- *  PASSIVE MOTION  (mouse move without button - hover detection)
- * ================================================================ */
+// --- PASSIVE MOTION  (mouse move without button - hover detection) ---
 
 static void passiveMotion(int x, int y) {
     screenToWorld(x, y, &g_mouseX, &g_mouseY);
@@ -3112,9 +2974,7 @@ static void passiveMotion(int x, int y) {
                              MENU_BTN_SIZE, MENU_BTN_SIZE);
 }
 
-/* ================================================================
- *  RESHAPE  (store viewport for mouse coordinate conversion)
- * ================================================================ */
+// --- RESHAPE  (store viewport for mouse coordinate conversion) ---
 
 static void reshape(int w, int h) {
     if (h == 0) h = 1;
@@ -3130,9 +2990,7 @@ static void reshape(int w, int h) {
     glMatrixMode(GL_MODELVIEW); glLoadIdentity();
 }
 
-/* ================================================================
- *  MAIN
- * ================================================================ */
+// --- MAIN ---
 
 int main(int argc, char **argv) {
     glutInit(&argc, argv);
