@@ -242,17 +242,17 @@ static float       g_shearX = 0.f;
 static int         g_hintTimer = 0;    /* controls-box fade timer (frames remaining) */
 
 /* Mouse tracking (world space) */
-static float       g_mouseX = 0, g_mouseY = 0;
-
-/* Hover states */
-static int         g_hoveredWeather   = -1;  /* -1 = none */
+static float       g_mouseX = 0, g_mouseY = 0;// --- Hover states ---
+static int         g_hoveredWeather   = -1;  // -1 = none
 static int         g_hoveredPlayAgain = 0;
 static int         g_hoveredClose     = 0;
 static int         g_hoveredMenu      = 0;
+static int         g_hoveredMenuItem  = -1;
 
-/* Menu state */
+// --- Menu state ---
 static int         g_menuExpanded     = 0;
 static float       g_menuAnimPhase    = 0.0f;
+static int         g_soundEnabled     = 1;
 
 /* Viewport (for mouse coordinate conversion) */
 static int         g_vpX = 0, g_vpY = 0, g_vpW = WIN_W, g_vpH = WIN_H;
@@ -629,16 +629,20 @@ static DWORD WINAPI audioWorkerThread(LPVOID lpParam) {
             if (state == STATE_TITLE) {
                 buf[0] = '\0';
                 mciSendStringA("status home mode", buf, sizeof(buf), NULL);
-                if (strcmp(buf, "playing") != 0) {
+                if (strcmp(buf, "playing") != 0 && g_soundEnabled) {
                     mciSendStringA("seek home to start", NULL, 0, NULL);
                     mciSendStringA("play home",   NULL, 0, NULL);
+                } else if (!g_soundEnabled) {
+                    mciSendStringA("stop home", NULL, 0, NULL);
                 }
             } else if (state == STATE_PLAYING || state == STATE_PAUSED) {
                 buf[0] = '\0';
                 mciSendStringA("status ambient mode", buf, sizeof(buf), NULL);
-                if (strcmp(buf, "playing") != 0 && strcmp(buf, "paused") != 0) {
+                if (strcmp(buf, "playing") != 0 && strcmp(buf, "paused") != 0 && g_soundEnabled) {
                     mciSendStringA("seek ambient to start", NULL, 0, NULL);
                     mciSendStringA("play ambient",   NULL, 0, NULL);
+                } else if (!g_soundEnabled) {
+                    mciSendStringA("stop ambient", NULL, 0, NULL);
                 }
             }
         }
@@ -660,6 +664,7 @@ static void sendAudioCmd(const char* cmd) {
 }
 
 static void playSound(int id) {
+    if (!g_soundEnabled) return;
     char cmd[128];
     switch (id) {
         case SFX_FLAP: {
@@ -2436,7 +2441,7 @@ static void drawMenuButton(void) {
     /* Dropdown Panel */
     if (g_menuAnimPhase > 0.001f) {
         float panelW = 160.f;
-        float maxH   = 160.f;
+        float maxH   = 180.f;
         float curH   = maxH * g_menuAnimPhase;
         float py     = by - curH + 4.f; /* overlap slightly with button */
         
@@ -2452,16 +2457,29 @@ static void drawMenuButton(void) {
         /* Instructions Text (Fade in) */
         if (g_menuAnimPhase > 0.8f) {
             float textAlpha = (g_menuAnimPhase - 0.8f) * 5.0f;
-            col4(255, 255, 255, (int)(255 * textAlpha));
             float tx = bx + 15.f;
             float ty = by - 22.f; /* relative to top of panel */
             float lh = 22.f;
-            bitmapText(tx, ty, GLUT_BITMAP_HELVETICA_12, "SPACE / Click : Flap");
-            bitmapText(tx, ty - lh*1, GLUT_BITMAP_HELVETICA_12, "W : Weather");
-            bitmapText(tx, ty - lh*2, GLUT_BITMAP_HELVETICA_12, "P : Pause");
-            bitmapText(tx, ty - lh*3, GLUT_BITMAP_HELVETICA_12, "R : Restart");
-            bitmapText(tx, ty - lh*4, GLUT_BITMAP_HELVETICA_12, "F11 : Fullscreen");
-            bitmapText(tx, ty - lh*5, GLUT_BITMAP_HELVETICA_12, "ESC : Quit");
+
+            const char* menuTexts[7] = {
+                "Flap : Space / Click",
+                "Weather : W",
+                "Pause : P",
+                "Restart : R",
+                "Fullscreen : F11",
+                "Quit : ESC",
+                g_soundEnabled ? "Sound : ON" : "Sound : OFF"
+            };
+
+            for (int i = 0; i < 7; i++) {
+                float rowY = ty - lh * i;
+                if (g_hoveredMenuItem == i) {
+                    col4(60, 100, 180, (int)(150 * textAlpha));
+                    fillRect(bx + 4.f, rowY - 5.f, panelW - 8.f, lh);
+                }
+                col4(255, 255, 255, (int)(255 * textAlpha));
+                bitmapText(tx, rowY, GLUT_BITMAP_HELVETICA_12, menuTexts[i]);
+            }
         }
     }
 
@@ -2898,6 +2916,35 @@ static void mouseInput(int button, int state, int x, int y) {
         return; /* Prevent flap */
     }
 
+    if (g_menuExpanded && g_hoveredMenuItem >= 0) {
+        switch (g_hoveredMenuItem) {
+            case 0: doFlap(); break;
+            case 1: nextWeather(); break;
+            case 2: 
+                if (g_state == STATE_PLAYING) g_state = STATE_PAUSED;
+                else if (g_state == STATE_PAUSED) g_state = STATE_PLAYING;
+                break;
+            case 3: resetGame(); break;
+            case 4: 
+                g_fullscreen = !g_fullscreen;
+                if (g_fullscreen) glutFullScreen();
+                else { glutReshapeWindow(WIN_W, WIN_H); glutPositionWindow(100, 80); }
+                break;
+            case 5: exit(0); break;
+            case 6: 
+                g_soundEnabled = !g_soundEnabled;
+                if (!g_soundEnabled) {
+                    sendAudioCmd("stop home");
+                    sendAudioCmd("stop ambient");
+                }
+                break;
+        }
+        if (g_hoveredMenuItem != 6) {
+            g_menuExpanded = 0; /* Auto-close menu on actions (except sound toggle) */
+        }
+        return;
+    }
+
     if (g_state == STATE_TITLE || g_state == STATE_GAMEOVER) {
         /* Weather buttons work on both title and game-over screens */
         int hw = hoveredWeatherButton();
@@ -2972,6 +3019,23 @@ static void passiveMotion(int x, int y) {
     g_hoveredMenu = isInRect(g_mouseX, g_mouseY,
                              MENU_BTN_X, MENU_BTN_Y,
                              MENU_BTN_SIZE, MENU_BTN_SIZE);
+                             
+    /* Menu items hover */
+    g_hoveredMenuItem = -1;
+    if (g_menuExpanded && g_menuAnimPhase > 0.8f) {
+        float panelW = 160.f;
+        float bx = MENU_BTN_X;
+        float by = MENU_BTN_Y;
+        float ty = by - 22.f;
+        float lh = 22.f;
+        for (int i = 0; i < 7; i++) {
+            float rowY = ty - lh * i;
+            if (isInRect(g_mouseX, g_mouseY, bx + 4.f, rowY - 5.f, panelW - 8.f, lh)) {
+                g_hoveredMenuItem = i;
+                break;
+            }
+        }
+    }
 }
 
 // --- RESHAPE  (store viewport for mouse coordinate conversion) ---
