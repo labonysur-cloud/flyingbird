@@ -1256,27 +1256,35 @@ static void drawTrees(void) {
 
 static void drawRainbow(void) {
     float cx = WORLD_W * 0.65f; // Place rainbow behind buildings
-    float cy = GROUND_Y + GROUND_H;
-    float colors[6][3] = {
-        {255.f,  0.f,   0.f},
-        {255.f, 127.f,  0.f},
-        {255.f, 255.f,  0.f},
-        {  0.f, 255.f,  0.f},
-        {  0.f,   0.f, 255.f},
-        {139.f,   0.f, 255.f}
+    float cy = GROUND_Y + GROUND_H - 40.f; // Moved down
+    float colors[7][3] = {
+        {255.f,   0.f,   0.f}, // Red
+        {255.f, 127.f,   0.f}, // Orange
+        {255.f, 255.f,   0.f}, // Yellow
+        {  0.f, 255.f,   0.f}, // Green
+        {  0.f,   0.f, 255.f}, // Blue
+        { 75.f,   0.f, 130.f}, // Indigo
+        {148.f,   0.f, 211.f}  // Violet
     };
-    glLineWidth(12.f);
-    for (int i = 0; i < 6; i++) {
-        col4((int)colors[i][0], (int)colors[i][1], (int)colors[i][2], 100);
-        float r = 130.f - i * 10.f;
-        glBegin(GL_LINE_STRIP);
-        for (int a = 0; a <= 20; a++) {
-            float ang = 3.1415926535f * a / 20.f;
-            glVertex2f(cx + cosf(ang) * r, cy + sinf(ang) * r);
+    
+    float bandWidth = 10.f;
+    float outerRadius = 140.f;
+    
+    for (int i = 0; i < 7; i++) {
+        col((int)colors[i][0], (int)colors[i][1], (int)colors[i][2]);
+        float rOut = outerRadius - i * bandWidth;
+        float rIn  = rOut - bandWidth;
+        
+        glBegin(GL_QUAD_STRIP);
+        for (int a = 0; a <= 60; a++) {
+            float ang = 3.1415926535f * a / 60.f;
+            float cosA = cosf(ang);
+            float sinA = sinf(ang);
+            glVertex2f(cx + cosA * rOut, cy + sinA * rOut);
+            glVertex2f(cx + cosA * rIn,  cy + sinA * rIn);
         }
         glEnd();
     }
-    glLineWidth(2.f);
 }
 
 static void drawCitySilhouette(void) {
