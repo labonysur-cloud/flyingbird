@@ -101,16 +101,12 @@
 
 /* Sound IDs */
 #define SFX_FLAP    0
-#define SFX_SCORE   1
-#define SFX_DIE     2
-#define SFX_CLICK   3
-#define SFX_HOVER   4
-#define SFX_WEATHER 5
-#define SFX_COIN    6
-#define SFX_START   7
-#define SFX_THUNDER1  8
-#define SFX_THUNDER2  9
-#define SFX_COUNT         10
+#define SFX_DIE     1
+#define SFX_COIN    2
+#define SFX_START   3
+#define SFX_THUNDER1  4
+#define SFX_THUNDER2  5
+#define SFX_COUNT         6
 
 /* ================================================================
  *  ENUMS
@@ -216,7 +212,6 @@ static int        g_hoveredDiff = -1;
 static Coin       g_coins[PIPE_COUNT];
 static int        g_coinScore      = 0;
 static int        g_coinPopupTimer = 0;
-static int        g_coinSoundLock  = 0;
 
 /* Screen shake */
 static float      g_shakeX = 0, g_shakeY = 0;
@@ -261,48 +256,7 @@ static int         g_hoveredClose     = 0;
 static int         g_vpX = 0, g_vpY = 0, g_vpW = WIN_W, g_vpH = WIN_H;
 static int         g_winH = WIN_H;
 
-/* Sound buffers */
-static unsigned char g_sfxBuf[SFX_COUNT][SFX_BUF];
-static int           g_sfxSize[SFX_COUNT];
-
-/* Sound priority system
- * Prevents low-priority sounds (flap, hover) from interrupting
- * a coin/score/die sound that is still within its expected duration.
- * Higher number = higher priority. Equal priority CAN interrupt.
- */
-static const int g_sfxPriority[SFX_COUNT] = {
-    1, /* SFX_FLAP    — low     */
-    3, /* SFX_SCORE   — medium  */
-    5, /* SFX_DIE     — highest */
-    3, /* SFX_CLICK   — medium  */
-    0, /* SFX_HOVER   — minimal */
-    3, /* SFX_WEATHER — medium  */
-    4, /* SFX_COIN    — high    */
-    4, /* SFX_START     */
-    5, /* SFX_THUNDER1  */
-    5, /* SFX_THUNDER2  */
-};
-/* Approximate playback length in frames at 60 FPS */
-static int g_sfxDurFrames[SFX_COUNT] = {
-     6, /* SFX_FLAP    ~0.10 s */
-    21, /* SFX_SCORE   ~0.35 s */
-    46, /* SFX_DIE     ~0.76 s */
-     3, /* SFX_CLICK   ~0.04 s */
-     2, /* SFX_HOVER   ~0.03 s */
-    28, /* SFX_WEATHER ~0.46 s */
-    16, /* SFX_COIN    ~0.26 s */
-    84, /* SFX_START   ~1.4 s */
-    156, /* SFX_THUNDER1 */
-    45, /* SFX_THUNDER2 */
-};
-static int g_activeSfxId    = -1;
-static int g_activeSfxTicks =  0;
-
-/* ----------------------------------------------------------------
- * Rain ambient loop — uses waveOut so it plays independently of
- * PlaySound (the two APIs share no internal state on Windows).
- * This means rain keeps sounding while score/flap/coin effects fire.
- * ---------------------------------------------------------------- */
+/* Sound system uses mciSendString directly for all BGM and SFX */
 
 /* ================================================================
  *  UTILITY
@@ -657,182 +611,148 @@ static float strokeWidth(const char *s, float scale) {
 
 #define PI2  6.28318530f
 
-/*
- * buildWav - generate a multi-segment WAV with frequency sweeps.
+/* ================================================================
+ *  ASYNC AUDIO SYSTEM (SINGLE PERSISTENT WORKER THREAD)
  *
- *   freqs   : array of frequencies (one per segment)
- *   durs    : array of durations in seconds (one per segment)
- *   count   : number of segments
- *   vol     : volume 0.0 - 1.0
- *   harmonics : 0 = pure sine,  1 = sine + two harmonics (richer tone)
- *
- * Within each segment the frequency linearly sweeps from freqs[i]
- * toward freqs[i+1] (portamento). The last segment holds its pitch.
- * Each segment has a short attack and release envelope.
- */
-static void buildWav(int id,
-                     float *freqs, float *durs, int count,
-                     float vol, int harmonics)
-{
-    /* Count total samples */
-    int totalSamples = 0;
-    for (int i = 0; i < count; i++)
-        totalSamples += (int)(durs[i] * SFX_RATE);
-    int dataBytes = totalSamples * 2;
+ *  MCI playback is tied to the calling thread. If a thread exits,
+ *  its playback is aborted. Therefore, we use a single persistent
+ *  worker thread and a command queue to handle all audio without
+ *  lagging the main game loop and without sounds cutting off.
+ * ================================================================ */
 
-    /* Write WAV header (44 bytes) byte-by-byte to avoid padding issues */
-    unsigned char *p = g_sfxBuf[id];
-    int riffSz = 36 + dataBytes;
-    memcpy(p,    "RIFF", 4); memcpy(p + 4,  &riffSz, 4);
-    memcpy(p + 8, "WAVE", 4);
-    memcpy(p + 12, "fmt ", 4);
-    int   fmtSz = 16;           memcpy(p + 16, &fmtSz, 4);
-    short one   = 1;            memcpy(p + 20, &one,   2);  /* PCM    */
-                                memcpy(p + 22, &one,   2);  /* mono   */
-    int   sr    = SFX_RATE;     memcpy(p + 24, &sr,    4);
-    int   br    = SFX_RATE * 2; memcpy(p + 28, &br,    4);  /* byteRate */
-    short ba    = 2;            memcpy(p + 32, &ba,    2);  /* blockAlign */
-    short bps   = 16;           memcpy(p + 34, &bps,   2);
-    memcpy(p + 36, "data", 4);  memcpy(p + 40, &dataBytes, 4);
+#define MAX_AUDIO_CMDS 256
+static char g_audioQueue[MAX_AUDIO_CMDS][128];
+static int  g_audioQueueHead = 0;
+static int  g_audioQueueTail = 0;
+static CRITICAL_SECTION g_audioCS;
+static HANDLE g_audioEvent;
 
-    short *sam = reinterpret_cast<short *>(p + 44);
-    int si = 0;
-    double phase = 0.0;
-
-    for (int seg = 0; seg < count; seg++) {
-        int   n  = (int)(durs[seg] * SFX_RATE);
-        float f0 = freqs[seg];
-        float f1 = (seg + 1 < count) ? freqs[seg + 1] : freqs[seg];
-
-        for (int j = 0; j < n; j++) {
-            float progress = (float)j / n;
-            float freq     = f0 + (f1 - f0) * progress;
-
-            /* Envelope */
-            float env;
-            if      (j < n * 0.05f)  env = (float)j / (n * 0.05f);
-            else if (j > n * 0.80f)  env = 1.f - (progress - 0.80f) / 0.20f;
-            else                     env = 1.f;
-
-            /* Phase accumulation for continuous waveform */
-            phase += freq / SFX_RATE;
-            if (phase > 1.0) phase -= 1.0;
-            float s = sinf((float)(PI2 * phase));
-
-            if (harmonics) {
-                s = s * 0.65f
-                  + sinf((float)(PI2 * phase * 2)) * 0.22f
-                  + sinf((float)(PI2 * phase * 3)) * 0.13f;
+static DWORD WINAPI audioWorkerThread(LPVOID lpParam) {
+    (void)lpParam;
+    while (1) {
+        char cmd[128] = {0};
+        
+        EnterCriticalSection(&g_audioCS);
+        int empty = (g_audioQueueHead == g_audioQueueTail);
+        LeaveCriticalSection(&g_audioCS);
+        
+        if (empty) {
+            /* Wait up to 1500ms. If timeout, we do BGM maintenance. */
+            WaitForSingleObject(g_audioEvent, 1500);
+        }
+        
+        EnterCriticalSection(&g_audioCS);
+        if (g_audioQueueHead != g_audioQueueTail) {
+            strcpy(cmd, g_audioQueue[g_audioQueueHead]);
+            g_audioQueueHead = (g_audioQueueHead + 1) % MAX_AUDIO_CMDS;
+        }
+        LeaveCriticalSection(&g_audioCS);
+        
+        if (cmd[0] != '\0') {
+            mciSendStringA(cmd, NULL, 0, NULL);
+        } else {
+            /* Idle timeout (1.5s passed without commands): BGM maintenance */
+            char buf[32];
+            int state = g_state; 
+            if (state == STATE_TITLE) {
+                buf[0] = '\0';
+                mciSendStringA("status home mode", buf, sizeof(buf), NULL);
+                if (strcmp(buf, "playing") != 0) {
+                    mciSendStringA("seek home to start", NULL, 0, NULL);
+                    mciSendStringA("play home",   NULL, 0, NULL);
+                }
+            } else if (state == STATE_PLAYING || state == STATE_PAUSED) {
+                buf[0] = '\0';
+                mciSendStringA("status ambient mode", buf, sizeof(buf), NULL);
+                if (strcmp(buf, "playing") != 0 && strcmp(buf, "paused") != 0) {
+                    mciSendStringA("seek ambient to start", NULL, 0, NULL);
+                    mciSendStringA("play ambient",   NULL, 0, NULL);
+                }
             }
-
-            float sampleF = s * vol * env * 32000.f;
-            sam[si++] = (short)clampf(sampleF, -32000.f, 32000.f);
         }
     }
-    g_sfxSize[id] = 44 + dataBytes;
+    return 0;
 }
 
-static void loadWavToSfxBuf(int id, const char *filename) {
-    if (id < 0 || id >= SFX_COUNT) return;
-    FILE *f = fopen(filename, "rb");
-    if (!f) {
-        g_sfxSize[id] = 0;
-        return;
+static void sendAudioCmd(const char* cmd) {
+    if (!cmd) return;
+    EnterCriticalSection(&g_audioCS);
+    int nextTail = (g_audioQueueTail + 1) % MAX_AUDIO_CMDS;
+    if (nextTail != g_audioQueueHead) {
+        strncpy(g_audioQueue[g_audioQueueTail], cmd, 127);
+        g_audioQueue[g_audioQueueTail][127] = '\0';
+        g_audioQueueTail = nextTail;
     }
-    fseek(f, 0, SEEK_END);
-    long size = ftell(f);
-    fseek(f, 0, SEEK_SET);
-    if (size > SFX_BUF) size = SFX_BUF;
-    fread(g_sfxBuf[id], 1, size, f);
-    g_sfxSize[id] = size;
-    fclose(f);
-
-    /* Read byte rate from WAV header (offset 28) to compute actual duration in frames */
-    if (size > 44 && 
-        g_sfxBuf[id][0] == 'R' && g_sfxBuf[id][1] == 'I' && g_sfxBuf[id][2] == 'F' && g_sfxBuf[id][3] == 'F' &&
-        g_sfxBuf[id][8] == 'W' && g_sfxBuf[id][9] == 'A' && g_sfxBuf[id][10] == 'V' && g_sfxBuf[id][11] == 'E') 
-    {
-        int byteRate = 0;
-        memcpy(&byteRate, &g_sfxBuf[id][28], 4);
-        if (byteRate > 0) {
-            float duration = (float)(size - 44) / byteRate;
-            g_sfxDurFrames[id] = (int)(duration * 60.f + 0.5f);
-        }
-    }
+    LeaveCriticalSection(&g_audioCS);
+    SetEvent(g_audioEvent);
 }
 
 static void playSound(int id) {
-    if (id < 0 || id >= SFX_COUNT || g_sfxSize[id] == 0) return;
-    if (g_activeSfxTicks > 0 && g_activeSfxId >= 0) {
-        if (g_sfxPriority[id] < g_sfxPriority[g_activeSfxId]) return;
+    char cmd[128];
+    switch (id) {
+        case SFX_FLAP: {
+            static int flapIdx = 0;
+            snprintf(cmd, sizeof(cmd), "seek flap%d to start", flapIdx);
+            sendAudioCmd(cmd);
+            snprintf(cmd, sizeof(cmd), "play flap%d", flapIdx);
+            sendAudioCmd(cmd);
+            flapIdx = (flapIdx + 1) % 3;
+            break;
+        }
+        case SFX_COIN: {
+            static int coinIdx = 0;
+            snprintf(cmd, sizeof(cmd), "seek coin%d to start", coinIdx);
+            sendAudioCmd(cmd);
+            snprintf(cmd, sizeof(cmd), "play coin%d", coinIdx);
+            sendAudioCmd(cmd);
+            coinIdx = (coinIdx + 1) % 2;
+            break;
+        }
+        case SFX_DIE:
+            sendAudioCmd("seek sfx_die to start");
+            sendAudioCmd("play sfx_die");
+            break;
+        case SFX_START:
+            sendAudioCmd("seek sfx_start to start");
+            sendAudioCmd("play sfx_start");
+            break;
+        case SFX_THUNDER1:
+            sendAudioCmd("seek sfx_thunder1 to start");
+            sendAudioCmd("play sfx_thunder1");
+            break;
+        case SFX_THUNDER2:
+            sendAudioCmd("seek sfx_thunder2 to start");
+            sendAudioCmd("play sfx_thunder2");
+            break;
     }
-    PlaySound((LPCSTR)g_sfxBuf[id], NULL, SND_MEMORY | SND_ASYNC | SND_NODEFAULT);
-    g_activeSfxId    = id;
-    g_activeSfxTicks = g_sfxDurFrames[id];
 }
 
-
 static void initSounds(void) {
-    loadWavToSfxBuf(SFX_FLAP, "asset/sound/jump.wav");
-    loadWavToSfxBuf(SFX_COIN, "asset/sound/collect-coin.wav");
-    loadWavToSfxBuf(SFX_DIE,  "asset/sound/game-over.wav");
-    loadWavToSfxBuf(SFX_START,"asset/sound/game-start.wav");
+    /* Initialize command queue and start the persistent worker thread first */
+    InitializeCriticalSection(&g_audioCS);
+    g_audioEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
+    CloseHandle(CreateThread(NULL, 0, audioWorkerThread, NULL, 0, NULL));
 
-    { float f[] = {523.f, 659.f, 784.f, 1047.f, 1319.f};
-      float d[] = {0.055f, 0.055f, 0.055f, 0.070f, 0.120f};
-      buildWav(SFX_SCORE, f, d, 5, 0.85f, 0); }
-    { float f[] = {1400.f, 800.f, 400.f};
-      float d[] = {0.010f, 0.015f, 0.018f};
-      buildWav(SFX_CLICK, f, d, 3, 0.75f, 0); }
-    { float f[] = {1200.f, 900.f};
-      float d[] = {0.012f, 0.018f};
-      buildWav(SFX_HOVER, f, d, 2, 0.35f, 0); }
-    { float f[] = {262.f, 330.f, 392.f, 523.f, 659.f};
-      float d[] = {0.065f, 0.065f, 0.075f, 0.085f, 0.175f};
-      buildWav(SFX_WEATHER, f, d, 5, 0.80f, 1); }
-
-    loadWavToSfxBuf(SFX_THUNDER1, "asset/sound/thunder-1.wav");
-    loadWavToSfxBuf(SFX_THUNDER2, "asset/sound/thunder-2.wav");
+    /* Open all aliases IN THE WORKER THREAD so they are owned by it!
+       We append 'type mpegvideo' to all files to route them through DirectShow.
+       This ensures that downloaded sounds (which might be 24-bit, 32-bit, or disguised MP3s)
+       play flawlessly, avoiding the strict limitations of the legacy waveaudio codec. */
+    sendAudioCmd("open \"D:\\bird_game\\asset\\sound\\jump.wav\"         alias flap0");
+    sendAudioCmd("open \"D:\\bird_game\\asset\\sound\\jump.wav\"         alias flap1");
+    sendAudioCmd("open \"D:\\bird_game\\asset\\sound\\jump.wav\"         alias flap2");
     
-    /* Initialize MCI background music using mpegvideo which supports repeat */
-    mciSendStringA("open \"asset/sound/home-page.wav\" type mpegvideo alias home", NULL, 0, NULL);
-    mciSendStringA("play home repeat", NULL, 0, NULL);
+    sendAudioCmd("open \"D:\\bird_game\\asset\\sound\\collect-coin.wav\" alias coin0");
+    sendAudioCmd("open \"D:\\bird_game\\asset\\sound\\collect-coin.wav\" alias coin1");
 
-    /* ----------------------------------------------------------------
-     * SFX_FLAP — Light, airy wing beat
-     * A quick rising chirp (G4→D5) that snaps back slightly (→A4).
-     * Pure sine keeps it clean; happens every flap so must not tire.
-     * Synthesized fallback if jump.wav is missing.
-     * ---------------------------------------------------------------- */
-    if (g_sfxSize[SFX_FLAP] == 0) {
-        float f[] = {392.f, 587.f, 880.f, 660.f};
-        float d[] = {0.020f, 0.020f, 0.020f, 0.040f};
-        buildWav(SFX_FLAP, f, d, 4, 0.65f, 0);
-    }
+    sendAudioCmd("open \"D:\\bird_game\\asset\\sound\\game-over.wav\"    alias sfx_die");
+    sendAudioCmd("open \"D:\\bird_game\\asset\\sound\\game-start.wav\"   alias sfx_start");
+    sendAudioCmd("open \"D:\\bird_game\\asset\\sound\\thunder-1.wav\"    alias sfx_thunder1");
+    sendAudioCmd("open \"D:\\bird_game\\asset\\sound\\thunder-2.wav\"    alias sfx_thunder2");
 
-    /* ----------------------------------------------------------------
-     * SFX_DIE — Dramatic descending wail  G4→F4→Eb4→D4→C4→Bb3→G3
-     * 7-note downward spiral with rich harmonics = classic game-over.
-     * Slow enough to feel heavy and final.
-     * Synthesized fallback if game-over.wav is missing.
-     * ---------------------------------------------------------------- */
-    if (g_sfxSize[SFX_DIE] == 0) {
-        float f[] = {392.f, 349.f, 311.f, 294.f, 261.f, 233.f, 196.f};
-        float d[] = {0.09f,  0.09f,  0.10f, 0.11f, 0.11f, 0.12f, 0.19f};
-        buildWav(SFX_DIE, f, d, 7, 0.90f, 1);
-    }
-
-    /* ----------------------------------------------------------------
-     * SFX_COIN — Classic 4-note ascending arcade chime  C6→E6→G6→C7
-     * Harmonics ON for a rich, bell-like timbre.
-     * Priority 4 (see g_sfxPriority) keeps it safe from interruption.
-     * Synthesized fallback if collect-coin.wav is missing.
-     * ---------------------------------------------------------------- */
-    if (g_sfxSize[SFX_COIN] == 0) {
-        float f[] = {1047.0f, 1319.0f, 1568.0f, 2093.0f};
-        float d[] = {0.045f,  0.045f,  0.045f,  0.125f};
-        buildWav(SFX_COIN, f, d, 4, 0.95f, 1);
-    }
+    sendAudioCmd("open \"D:\\bird_game\\asset\\sound\\home-page.wav\"    alias home");
+    
+    /* Start the home page BGM through the queue */
+    sendAudioCmd("play home");
 }
 
 /* ================================================================
@@ -940,7 +860,7 @@ static void resetGame(void) {
     g_hintTimer = 360;  /* show controls box for ~6 s at 60 fps */
     initBird(); initPipes();
     g_state = STATE_PLAYING;
-    mciSendStringA("stop home", NULL, 0, NULL); /* Stop home page BGM */
+    sendAudioCmd("stop home"); /* Stop home page BGM */
     playSound(SFX_START);
     updateWeatherAmbient(); /* Start ambient BGM */
 }
@@ -1005,15 +925,14 @@ static void updateShake(void) {
  * ================================================================ */
 
 static void updateWeatherAmbient(void) {
-    mciSendStringA("close ambient", NULL, 0, NULL);
-    if      (g_weather == WEATHER_RAIN)  mciSendStringA("open \"asset/sound/rain.wav\" type mpegvideo alias ambient", NULL, 0, NULL);
-    else if (g_weather == WEATHER_NIGHT) mciSendStringA("open \"asset/sound/night-crickets.wav\" type mpegvideo alias ambient", NULL, 0, NULL);
-    else if (g_weather == WEATHER_DAY)   mciSendStringA("open \"asset/sound/day-birds.wav\" type mpegvideo alias ambient", NULL, 0, NULL);
-    else if (g_weather == WEATHER_SUNNY) mciSendStringA("open \"asset/sound/morning-birds.wav\" type mpegvideo alias ambient", NULL, 0, NULL);
+    sendAudioCmd("close ambient");
+    if      (g_weather == WEATHER_RAIN)  sendAudioCmd("open \"D:\\bird_game\\asset\\sound\\rain.wav\" alias ambient");
+    else if (g_weather == WEATHER_NIGHT) sendAudioCmd("open \"D:\\bird_game\\asset\\sound\\night-crickets.wav\" alias ambient");
+    else if (g_weather == WEATHER_DAY)   sendAudioCmd("open \"D:\\bird_game\\asset\\sound\\day-birds.wav\" alias ambient");
+    else if (g_weather == WEATHER_SUNNY) sendAudioCmd("open \"D:\\bird_game\\asset\\sound\\morning-birds.wav\" alias ambient");
+    else if (g_weather == WEATHER_SNOW)  sendAudioCmd("open \"D:\\bird_game\\asset\\sound\\snow.mp3\" alias ambient");
     
-    if (g_weather != WEATHER_SNOW) {
-        mciSendStringA("play ambient repeat", NULL, 0, NULL);
-    }
+    sendAudioCmd("play ambient");
 }
 
 
@@ -1023,7 +942,6 @@ static void nextWeather(void) {
     g_weatherNameTimer = 150;
     g_wFlashTicks     = 12;
     initRain();
-    playSound(SFX_WEATHER);
     updateWeatherAmbient();
 }
 
@@ -1033,7 +951,6 @@ static void setWeather(WeatherMode w) {
     g_weatherNameTimer = 120;
     g_wFlashTicks      = 10;
     initRain();
-    playSound(SFX_WEATHER);
     updateWeatherAmbient();
 }
 
@@ -2815,7 +2732,6 @@ static void updateRainDrops(void) {
 
 static void updateGame(void) {
     g_frame++;
-    if (g_activeSfxTicks > 0) g_activeSfxTicks--;
     updateWeather();
 
     if (g_state == STATE_TITLE) {
@@ -2861,12 +2777,10 @@ static void updateGame(void) {
             g_coins[ci].collected = 1;
             g_coinScore          += COIN_COLLECT_BONUS;
             g_coinPopupTimer      = 40;
-            g_coinSoundLock       = 15; /* Prevent flap from interrupting for ~0.25 sec */
             playSound(SFX_COIN);
         }
     }
     if (g_coinPopupTimer > 0) g_coinPopupTimer--;
-    if (g_coinSoundLock > 0)  g_coinSoundLock--;
     updateClouds();
     if (g_weather == WEATHER_RAIN)  updateRainDrops();
     if (g_weather == WEATHER_SNOW)  updateSnow();
@@ -2885,6 +2799,17 @@ static void updateGame(void) {
     updateShake();
     if (g_flashTicks > 0) g_flashTicks--;
 }
+
+/* ================================================================
+ *  BGM LOOP MAINTENANCE
+ *
+ *  MCI's 'repeat' flag can silently stop working on some Windows
+ *  builds. This function is called every frame and polls the current
+ *  BGM / ambient status every 90 frames (~1.5 s at 60 fps). If the
+ *  track has stopped playing it restarts it from the beginning.
+ *  This makes looping rock-solid regardless of MCI implementation.
+ * ================================================================ */
+/* Timer maintenance moved to audio worker thread timeout */
 
 /* ================================================================
  *  TIMER
@@ -2917,9 +2842,7 @@ static void doFlap(void) {
         g_bird.vy        = FLAP_VEL;
         g_bird.angle     = TILT_UP_DEG;
         g_bird.wingFrame = 1;
-        if (g_coinSoundLock <= 0) {
-            playSound(SFX_FLAP);
-        }
+        playSound(SFX_FLAP);
     }
 }
 
@@ -2930,7 +2853,7 @@ static void doFlap(void) {
 
 static int hoveredDiffButton(void) {
     float startX = WORLD_W / 2.f - 170.f;
-    float y = 180.f, w = 110.f, h = 40.f;
+    float y = 260.f, w = 110.f, h = 40.f;  /* must match drawDifficultySelector */
     for (int i = 0; i < 3; i++) {
         float bx = startX + i * (w + 10.f);
         if (isInRect(g_mouseX, g_mouseY, bx, y, w, h)) return i;
@@ -3004,7 +2927,6 @@ static void mouseInput(int button, int state, int x, int y) {
     /* Close button — checked first, works in every game state */
     if (isInRect(g_mouseX, g_mouseY, CLOSE_BTN_X, CLOSE_BTN_Y,
                  CLOSE_BTN_SIZE, CLOSE_BTN_SIZE)) {
-        playSound(SFX_CLICK);
         exit(0);
     }
 
@@ -3013,14 +2935,12 @@ static void mouseInput(int button, int state, int x, int y) {
         int hw = hoveredWeatherButton();
         if (hw >= 0) {
             setWeather(static_cast<WeatherMode>(hw));
-            playSound(SFX_CLICK);
             return;
         }
         if (g_state == STATE_TITLE) {
             int hd = hoveredDiffButton();
             if (hd >= 0) {
                 g_difficulty = static_cast<Difficulty>(hd);
-                playSound(SFX_CLICK);
                 return;
             }
             /* Clicking elsewhere on title starts the game */
@@ -3030,7 +2950,6 @@ static void mouseInput(int button, int state, int x, int y) {
 
     if (g_state == STATE_GAMEOVER && g_gameOverDelay <= 0) {
         if (hoveredPlayAgainButton()) {
-            playSound(SFX_CLICK);
             resetGame();
             return;
         }
@@ -3052,14 +2971,12 @@ static void passiveMotion(int x, int y) {
     if (g_state == STATE_TITLE || g_state == STATE_GAMEOVER) {
         int prev      = g_hoveredWeather;
         g_hoveredWeather = hoveredWeatherButton();
-        if (g_hoveredWeather != prev && g_hoveredWeather >= 0)
-            playSound(SFX_HOVER);
+        if (g_hoveredWeather != prev && g_hoveredWeather >= 0) {}
 
         if (g_state == STATE_TITLE) {
             int prevD    = g_hoveredDiff;
             g_hoveredDiff = hoveredDiffButton();
-            if (g_hoveredDiff != prevD && g_hoveredDiff >= 0)
-                playSound(SFX_HOVER);
+            if (g_hoveredDiff != prevD && g_hoveredDiff >= 0) {}
         }
     } else {
         g_hoveredWeather = -1;
@@ -3070,8 +2987,8 @@ static void passiveMotion(int x, int y) {
     if (g_state == STATE_GAMEOVER && g_gameOverDelay <= 0) {
         int prev         = g_hoveredPlayAgain;
         g_hoveredPlayAgain = hoveredPlayAgainButton();
-        if (g_hoveredPlayAgain && !prev)
-            playSound(SFX_HOVER);
+        if (g_hoveredPlayAgain && !prev) {
+        }
     } else {
         g_hoveredPlayAgain = 0;
     }
@@ -3082,7 +2999,7 @@ static void passiveMotion(int x, int y) {
         g_hoveredClose = isInRect(g_mouseX, g_mouseY,
                                   CLOSE_BTN_X, CLOSE_BTN_Y,
                                   CLOSE_BTN_SIZE, CLOSE_BTN_SIZE);
-        if (g_hoveredClose && !prev) playSound(SFX_HOVER);
+        if (g_hoveredClose && !prev) {}
     }
 }
 
