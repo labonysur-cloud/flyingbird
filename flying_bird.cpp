@@ -95,6 +95,11 @@
 #define CLOSE_BTN_X      (WORLD_W - CLOSE_BTN_SIZE - 8.0f)
 #define CLOSE_BTN_Y      (WORLD_H - CLOSE_BTN_SIZE - 8.0f)
 
+/* Menu button — top-left corner */
+#define MENU_BTN_SIZE     30.0f
+#define MENU_BTN_X        10.0f
+#define MENU_BTN_Y       (WORLD_H - MENU_BTN_SIZE - 8.0f)
+
 /* Sound sample rate */
 #define SFX_RATE         22050
 #define SFX_BUF          3145728   /* 64 KB per sound, enough for ~1.5 sec */
@@ -251,6 +256,11 @@ static float       g_mouseX = 0, g_mouseY = 0;
 static int         g_hoveredWeather   = -1;  /* -1 = none */
 static int         g_hoveredPlayAgain = 0;
 static int         g_hoveredClose     = 0;
+static int         g_hoveredMenu      = 0;
+
+/* Menu state */
+static int         g_menuExpanded     = 0;
+static float       g_menuAnimPhase    = 0.0f;
 
 /* Viewport (for mouse coordinate conversion) */
 static int         g_vpX = 0, g_vpY = 0, g_vpW = WIN_W, g_vpH = WIN_H;
@@ -858,6 +868,7 @@ static void resetGame(void) {
     g_gameOverDelay = 0;
     g_shearX    = 0.f;
     g_hintTimer = 360;  /* show controls box for ~6 s at 60 fps */
+    g_menuExpanded = 0; /* Auto-close menu when starting */
     initBird(); initPipes();
     g_state = STATE_PLAYING;
     sendAudioCmd("stop home"); /* Stop home page BGM */
@@ -2527,6 +2538,84 @@ static void drawCloseButton(void) {
 }
 
 /* ================================================================
+ *  DRAW: MENU BUTTON  (top-left corner, expandable)
+ * ================================================================ */
+
+static void drawMenuButton(void) {
+    float bx  = MENU_BTN_X;
+    float by  = MENU_BTN_Y;
+    float sz  = MENU_BTN_SIZE;
+
+    /* Dropdown Panel */
+    if (g_menuAnimPhase > 0.001f) {
+        float panelW = 160.f;
+        float maxH   = 160.f;
+        float curH   = maxH * g_menuAnimPhase;
+        float py     = by - curH + 4.f; /* overlap slightly with button */
+        
+        /* Box Background (solid colour) */
+        col(20, 25, 40); 
+        if (curH > 16.0f) fillRoundRect(bx, py, panelW, curH, 8.f);
+        else              fillRect(bx, py, panelW, curH);
+        
+        /* Border */
+        col4(60, 100, 180, (int)(255 * g_menuAnimPhase));
+        if (curH > 4.0f) outlineRect(bx, py, panelW, curH, 1.5f);
+
+        /* Instructions Text (Fade in) */
+        if (g_menuAnimPhase > 0.8f) {
+            float textAlpha = (g_menuAnimPhase - 0.8f) * 5.0f;
+            col4(255, 255, 255, (int)(255 * textAlpha));
+            float tx = bx + 15.f;
+            float ty = by - 22.f; /* relative to top of panel */
+            float lh = 22.f;
+            bitmapText(tx, ty, GLUT_BITMAP_HELVETICA_12, "SPACE / Click : Flap");
+            bitmapText(tx, ty - lh*1, GLUT_BITMAP_HELVETICA_12, "W : Weather");
+            bitmapText(tx, ty - lh*2, GLUT_BITMAP_HELVETICA_12, "P : Pause");
+            bitmapText(tx, ty - lh*3, GLUT_BITMAP_HELVETICA_12, "R : Restart");
+            bitmapText(tx, ty - lh*4, GLUT_BITMAP_HELVETICA_12, "F11 : Fullscreen");
+            bitmapText(tx, ty - lh*5, GLUT_BITMAP_HELVETICA_12, "ESC : Quit");
+        }
+    }
+
+    /* Button Shadow */
+    col4(0, 0, 0, 60);
+    fillRoundRect(bx + 2.f, by - 2.f, sz, sz, 6.f);
+
+    /* Button body */
+    if (g_hoveredMenu || g_menuExpanded) col(80, 140, 240);
+    else                                 col(60, 110, 200);
+    fillRoundRect(bx, by, sz, sz, 6.f);
+
+    /* Highlight */
+    col4(160, 200, 255, (g_hoveredMenu || g_menuExpanded) ? 90 : 55);
+    fillRoundRect(bx + 2.f, by + sz * 0.55f, sz - 4.f, sz * 0.4f, 5.f);
+
+    /* Border */
+    col(120, 170, 255);
+    outlineRect(bx, by, sz, sz, 1.5f);
+
+    /* Hamburger Icon ≡ */
+    col(255, 255, 255);
+    float cx = bx + sz/2.f;
+    float cy = by + sz/2.f;
+    float w  = sz * 0.45f;
+    float hGap = 5.f;
+    glLineWidth(2.5f);
+    glBegin(GL_LINES);
+        glVertex2f(cx - w/2.f, cy + hGap);
+        glVertex2f(cx + w/2.f, cy + hGap);
+        
+        glVertex2f(cx - w/2.f, cy);
+        glVertex2f(cx + w/2.f, cy);
+        
+        glVertex2f(cx - w/2.f, cy - hGap);
+        glVertex2f(cx + w/2.f, cy - hGap);
+    glEnd();
+    glLineWidth(2.f);
+}
+
+/* ================================================================
  *  DISPLAY CALLBACK
  * ================================================================ */
 
@@ -2570,8 +2659,9 @@ static void display(void) {
     drawParticles();      /* GL_POINTS — score sparkle burst */
     drawWeatherName();
 
-    /* Close button — always on top, drawn last so it's never hidden */
+    /* Always visible buttons on top */
     drawCloseButton();
+    drawMenuButton();
 
     /* Weather change flash */
     if (g_wFlashTicks > 0) {
@@ -2733,6 +2823,14 @@ static void updateRainDrops(void) {
 static void updateGame(void) {
     g_frame++;
     updateWeather();
+
+    if (g_menuExpanded) {
+        if (g_menuAnimPhase < 1.0f) g_menuAnimPhase += 0.15f;
+        if (g_menuAnimPhase > 1.0f) g_menuAnimPhase = 1.0f;
+    } else {
+        if (g_menuAnimPhase > 0.0f) g_menuAnimPhase -= 0.15f;
+        if (g_menuAnimPhase < 0.0f) g_menuAnimPhase = 0.0f;
+    }
 
     if (g_state == STATE_TITLE) {
         updateClouds();
@@ -2930,6 +3028,12 @@ static void mouseInput(int button, int state, int x, int y) {
         exit(0);
     }
 
+    /* Menu button */
+    if (isInRect(g_mouseX, g_mouseY, MENU_BTN_X, MENU_BTN_Y, MENU_BTN_SIZE, MENU_BTN_SIZE)) {
+        g_menuExpanded = !g_menuExpanded;
+        return; /* Prevent flap */
+    }
+
     if (g_state == STATE_TITLE || g_state == STATE_GAMEOVER) {
         /* Weather buttons work on both title and game-over screens */
         int hw = hoveredWeatherButton();
@@ -3001,6 +3105,11 @@ static void passiveMotion(int x, int y) {
                                   CLOSE_BTN_SIZE, CLOSE_BTN_SIZE);
         if (g_hoveredClose && !prev) {}
     }
+
+    /* Menu button hover — always active */
+    g_hoveredMenu = isInRect(g_mouseX, g_mouseY,
+                             MENU_BTN_X, MENU_BTN_Y,
+                             MENU_BTN_SIZE, MENU_BTN_SIZE);
 }
 
 /* ================================================================
