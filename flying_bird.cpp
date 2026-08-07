@@ -96,7 +96,7 @@
 /* Menu button — top-left corner */
 #define MENU_BTN_SIZE     30.0f
 #define MENU_BTN_X        10.0f
-#define MENU_BTN_Y       (WORLD_H - MENU_BTN_SIZE - 65.0f)
+#define MENU_BTN_Y       (WORLD_H - MENU_BTN_SIZE - 100.0f)
 
 /* Sound sample rate */
 #define SFX_RATE         22050
